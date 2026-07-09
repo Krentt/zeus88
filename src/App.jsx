@@ -57,7 +57,7 @@ export default function App() {
   const [records, setRecords] = useState([]);
   const [flashMessage, setFlashMessage] = useState(null);
   const [listSearch, setListSearch] = useState('');
-  const [listOfficeFilter, setListOfficeFilter] = useState('Semua Kantor');
+  const [listOfficeFilter, setListOfficeFilter] = useState('Semua Satker');
   const [officeFilterOpen, setOfficeFilterOpen] = useState(false);
   const [officeFilterQuery, setOfficeFilterQuery] = useState('');
 
@@ -199,7 +199,7 @@ export default function App() {
     }
     const officeRow = officeRows.find((o) => o.name === selectedOffice);
     if (!officeRow) {
-      flash('Kantor tidak ditemukan, coba pilih ulang.', 3000);
+      flash('Satker tidak ditemukan, coba pilih ulang.', 3000);
       return;
     }
 
@@ -297,12 +297,12 @@ export default function App() {
     { label: 'Total Taruhan', value: fmtNum(records.length) },
     { label: 'Coin Beredar', value: fmtNum(totalCoins) },
     { label: 'Pemain Aktif', value: fmtNum(bettorCount) },
-    { label: 'Kantor OJK', value: '40' },
+    { label: 'Satker', value: '40' },
   ];
 
   const stepsView = [
     { num: 1, title: 'Register', desc: 'Daftar gratis dan langsung dapat 1000 coin untuk modal taruhan.' },
-    { num: 2, title: 'Pilih Kantor OJK', desc: 'Pilih 1 dari 40 kantor OJK sebagai tujuan tebakan.' },
+    { num: 2, title: 'Pilih Satker', desc: 'Pilih 1 dari 40 satker sebagai tujuan tebakan.' },
     { num: 3, title: 'Pilih Nama & Bid', desc: 'Pilih nama-nama kandidat lalu pasang jumlah coin taruhanmu.' },
   ];
 
@@ -323,16 +323,16 @@ export default function App() {
   const showStickyBar = loggedIn && !!selectedOffice;
 
   const listQuery = listSearch.toLowerCase();
-  const officeFilterOptions = ['Semua Kantor', ...offices];
+  const officeFilterOptions = ['Semua Satker', ...offices];
   const officeFilterQueryLower = officeFilterQuery.toLowerCase();
   const officeFilterOptionsView = officeFilterOptions.filter((opt) => {
-    if (opt === 'Semua Kantor') return true;
+    if (opt === 'Semua Satker') return true;
     const row = officeRows.find((o) => o.name === opt);
     return opt.toLowerCase().includes(officeFilterQueryLower) || (row && row.abbr && row.abbr.toLowerCase().includes(officeFilterQueryLower));
   });
   const recordsView = records
     .filter((r) => r.candidate.toLowerCase().includes(listQuery))
-    .filter((r) => listOfficeFilter === 'Semua Kantor' || r.office === listOfficeFilter)
+    .filter((r) => listOfficeFilter === 'Semua Satker' || r.office === listOfficeFilter)
     .slice(0, 200);
 
   const inputStyle = {
@@ -515,7 +515,7 @@ export default function App() {
               <span className="tp-shimmer-text" style={{ animation: 'shimmer 2.5s linear infinite, glowPulse 2s ease-in-out infinite' }}>MENANGKAN COIN!</span>
             </div>
             <div style={{ maxWidth: '640px', margin: '18px auto 0', fontSize: '17px', color: 'oklch(0.78 0.02 100)', lineHeight: 1.6 }}>
-              Tebak akan ditempatkan di kantor OJK mana orientasi tahun ini, pasang taruhanmu, dan naik ke puncak papan peringkat!
+              Tebak akan ditempatkan di satker mana teman seangkatanmu. Pasang taruhanmu dan naik ke puncak papan peringkat!
             </div>
             <div style={{ display: 'flex', gap: '14px', justifyContent: 'center', marginTop: '26px', flexWrap: 'wrap' }}>
               <div
@@ -675,14 +675,14 @@ export default function App() {
                 {showOfficeStep && (
                   <div>
                     <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: '26px', color: 'oklch(0.82 0.19 88)', letterSpacing: '1px', marginBottom: '6px' }}>
-                      LANGKAH 1 — PILIH KANTOR OJK
+                      LANGKAH 1 — PILIH SATKER
                     </div>
                     <div style={{ color: 'oklch(0.75 0.02 100)', marginBottom: '16px', fontSize: '14px' }}>
-                      40 kantor tersedia. Pilih kantor tujuan yang mau kamu tebak.
+                      40 satker tersedia. Pilih satker tujuan yang mau kamu tebak.
                     </div>
                     <input
                       type="text"
-                      placeholder="Cari kantor OJK..."
+                      placeholder="Cari satker..."
                       value={officeSearch}
                       onChange={(e) => setOfficeSearch(e.target.value)}
                       style={{ ...inputStyle, marginBottom: '18px' }}
@@ -723,14 +723,14 @@ export default function App() {
                           LANGKAH 2 — PILIH KANDIDAT
                         </div>
                         <div style={{ color: 'oklch(0.75 0.02 100)', fontSize: '14px' }}>
-                          Kantor tujuan: <b style={{ color: 'oklch(0.96 0.01 90)' }}>{selectedOffice}</b>
+                          Satker tujuan: <b style={{ color: 'oklch(0.96 0.01 90)' }}>{selectedOffice}</b>
                         </div>
                       </div>
                       <div
                         style={{ cursor: 'pointer', fontSize: '13px', color: 'oklch(0.82 0.19 88)', border: '1px solid oklch(0.82 0.19 88)', padding: '8px 14px', borderRadius: '8px' }}
                         onClick={backToOffice}
                       >
-                        ← Ganti Kantor
+                        ← Ganti Satker
                       </div>
                     </div>
 
@@ -916,7 +916,7 @@ export default function App() {
                   >
                     <input
                       type="text"
-                      placeholder="Cari kantor..."
+                      placeholder="Cari satker..."
                       value={officeFilterQuery}
                       onChange={(e) => setOfficeFilterQuery(e.target.value)}
                       autoFocus
@@ -975,7 +975,7 @@ export default function App() {
               }}
             >
               <div>Kandidat</div>
-              <div>Kantor Tujuan</div>
+              <div>Satker Tujuan</div>
               <div>Coin</div>
               <div>Pemasang</div>
               <div>Waktu</div>
