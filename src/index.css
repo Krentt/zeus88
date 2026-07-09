@@ -1,0 +1,126 @@
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: oklch(0.14 0.04 155);
+}
+
+#root {
+  min-height: 100vh;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: oklch(0.55 0.19 25);
+  border-radius: 10px;
+}
+::-webkit-scrollbar-track {
+  background: oklch(0.18 0.05 155);
+}
+
+@keyframes glowPulse {
+  0%,
+  100% {
+    text-shadow:
+      0 0 12px oklch(0.8 0.14 85 / 0.55),
+      0 0 2px oklch(0.9 0.05 85);
+  }
+  50% {
+    text-shadow:
+      0 0 26px oklch(0.8 0.14 85 / 0.9),
+      0 0 4px oklch(0.9 0.05 85);
+  }
+}
+
+@keyframes chipSpin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.tp-hero-title {
+  font-size: 56px;
+}
+.tp-steps-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+}
+.tp-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+}
+.tp-leaderboard-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+}
+.tp-list-row {
+  display: grid;
+  grid-template-columns: 2fr 1.6fr 1fr 1.2fr 1fr;
+}
+
+.tp-nav-tabs {
+  display: flex;
+}
+.tp-bottom-tabs {
+  display: none;
+}
+.tp-bottom-spacer {
+  display: none;
+}
+
+@media (max-width: 720px) {
+  .tp-hero-title {
+    font-size: 34px;
+  }
+  .tp-steps-grid {
+    grid-template-columns: 1fr;
+  }
+  .tp-stats-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .tp-leaderboard-grid {
+    grid-template-columns: 1fr;
+  }
+  .tp-list-row {
+    grid-template-columns: 1.6fr 1fr 0.9fr;
+  }
+  .tp-list-row > :nth-child(4),
+  .tp-list-row > :nth-child(5) {
+    display: none;
+  }
+
+  .tp-nav-tabs {
+    display: none;
+  }
+  .tp-bottom-tabs {
+    display: flex;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 60;
+    gap: 4px;
+    background: oklch(0.13 0.035 155);
+    border-top: 3px solid oklch(0.8 0.14 85);
+    padding: 8px 10px calc(8px + env(safe-area-inset-bottom));
+    box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.4);
+  }
+  .tp-bottom-tabs > div {
+    flex: 1;
+  }
+  .tp-bottom-spacer {
+    display: block;
+    height: 60px;
+  }
+  .tp-sticky-bid {
+    bottom: 60px !important;
+  }
+}
