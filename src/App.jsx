@@ -49,6 +49,8 @@ export default function App() {
   const [flashMessage, setFlashMessage] = useState(null);
   const [listSearch, setListSearch] = useState('');
   const [listOfficeFilter, setListOfficeFilter] = useState('Semua Kantor');
+  const [officeFilterOpen, setOfficeFilterOpen] = useState(false);
+  const [officeFilterQuery, setOfficeFilterQuery] = useState('');
 
   const flash = (msg, ms = 3500) => {
     setFlashMessage(msg);
@@ -299,6 +301,12 @@ export default function App() {
 
   const listQuery = listSearch.toLowerCase();
   const officeFilterOptions = ['Semua Kantor', ...offices];
+  const officeFilterQueryLower = officeFilterQuery.toLowerCase();
+  const officeFilterOptionsView = officeFilterOptions.filter((opt) => {
+    if (opt === 'Semua Kantor') return true;
+    const row = officeRows.find((o) => o.name === opt);
+    return opt.toLowerCase().includes(officeFilterQueryLower) || (row && row.abbr && row.abbr.toLowerCase().includes(officeFilterQueryLower));
+  });
   const recordsView = records
     .filter((r) => r.candidate.toLowerCase().includes(listQuery))
     .filter((r) => listOfficeFilter === 'Semua Kantor' || r.office === listOfficeFilter)
@@ -828,25 +836,94 @@ export default function App() {
               onChange={(e) => setListSearch(e.target.value)}
               style={{ ...inputStyle, flex: 1, minWidth: '220px' }}
             />
-            <select
-              value={listOfficeFilter}
-              onChange={(e) => setListOfficeFilter(e.target.value)}
-              style={{
-                padding: '12px 16px',
-                borderRadius: '10px',
-                border: '2px solid oklch(0.32 0.06 155)',
-                background: 'oklch(0.16 0.045 155)',
-                color: 'oklch(0.96 0.01 90)',
-                fontSize: '14px',
-                outline: 'none',
-              }}
-            >
-              {officeFilterOptions.map((opt) => (
-                <option key={opt} value={opt}>
-                  {opt}
-                </option>
-              ))}
-            </select>
+            <div style={{ position: 'relative', minWidth: '220px' }}>
+              <div
+                onClick={() => {
+                  setOfficeFilterOpen((o) => !o);
+                  setOfficeFilterQuery('');
+                }}
+                style={{
+                  cursor: 'pointer',
+                  padding: '12px 16px',
+                  borderRadius: '10px',
+                  border: officeFilterOpen ? '2px solid oklch(0.80 0.14 85)' : '2px solid oklch(0.32 0.06 155)',
+                  background: 'oklch(0.16 0.045 155)',
+                  color: 'oklch(0.96 0.01 90)',
+                  fontSize: '14px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: '8px',
+                }}
+              >
+                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{listOfficeFilter}</span>
+                <span style={{ opacity: 0.7 }}>▾</span>
+              </div>
+
+              {officeFilterOpen && (
+                <>
+                  <div
+                    style={{ position: 'fixed', inset: 0, zIndex: 90 }}
+                    onClick={() => setOfficeFilterOpen(false)}
+                  />
+                  <div
+                    style={{
+                      position: 'absolute',
+                      top: 'calc(100% + 6px)',
+                      left: 0,
+                      right: 0,
+                      zIndex: 91,
+                      background: 'oklch(0.16 0.045 155)',
+                      border: '2px solid oklch(0.80 0.14 85)',
+                      borderRadius: '10px',
+                      overflow: 'hidden',
+                      boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
+                    }}
+                  >
+                    <input
+                      type="text"
+                      placeholder="Cari kantor..."
+                      value={officeFilterQuery}
+                      onChange={(e) => setOfficeFilterQuery(e.target.value)}
+                      autoFocus
+                      style={{
+                        width: '100%',
+                        padding: '10px 14px',
+                        border: 'none',
+                        borderBottom: '1px solid oklch(0.32 0.06 155)',
+                        background: 'oklch(0.14 0.04 155)',
+                        color: 'oklch(0.96 0.01 90)',
+                        fontSize: '14px',
+                        outline: 'none',
+                      }}
+                    />
+                    <div style={{ maxHeight: '260px', overflowY: 'auto' }}>
+                      {officeFilterOptionsView.map((opt) => (
+                        <div
+                          key={opt}
+                          onClick={() => {
+                            setListOfficeFilter(opt);
+                            setOfficeFilterOpen(false);
+                          }}
+                          style={{
+                            cursor: 'pointer',
+                            padding: '10px 14px',
+                            fontSize: '14px',
+                            background: opt === listOfficeFilter ? 'oklch(0.30 0.09 85)' : 'transparent',
+                            color: opt === listOfficeFilter ? 'oklch(0.96 0.01 90)' : 'oklch(0.9 0.01 90)',
+                          }}
+                        >
+                          {opt}
+                        </div>
+                      ))}
+                      {officeFilterOptionsView.length === 0 && (
+                        <div style={{ padding: '14px', fontSize: '13px', color: 'oklch(0.7 0.02 100)', textAlign: 'center' }}>Tidak ditemukan</div>
+                      )}
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
           </div>
 
           <div style={{ border: '2px solid oklch(0.30 0.06 155)', borderRadius: '14px', overflow: 'hidden' }}>
