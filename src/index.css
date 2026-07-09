@@ -4,7 +4,7 @@
 
 body {
   margin: 0;
-  background: oklch(0.14 0.04 155);
+  background: oklch(0.16 0.05 25);
 }
 
 #root {
@@ -16,24 +16,26 @@ body {
   height: 10px;
 }
 ::-webkit-scrollbar-thumb {
-  background: oklch(0.55 0.19 25);
+  background: linear-gradient(180deg, oklch(0.85 0.16 90), oklch(0.60 0.20 25));
   border-radius: 10px;
 }
 ::-webkit-scrollbar-track {
-  background: oklch(0.18 0.05 155);
+  background: oklch(0.16 0.06 25);
 }
 
 @keyframes glowPulse {
   0%,
   100% {
     text-shadow:
-      0 0 12px oklch(0.8 0.14 85 / 0.55),
-      0 0 2px oklch(0.9 0.05 85);
+      0 0 12px oklch(0.85 0.18 90 / 0.65),
+      0 0 24px oklch(0.65 0.22 25 / 0.5),
+      0 0 2px oklch(0.95 0.05 90);
   }
   50% {
     text-shadow:
-      0 0 26px oklch(0.8 0.14 85 / 0.9),
-      0 0 4px oklch(0.9 0.05 85);
+      0 0 30px oklch(0.85 0.18 90 / 1),
+      0 0 50px oklch(0.65 0.22 25 / 0.8),
+      0 0 6px oklch(0.95 0.05 90);
   }
 }
 
@@ -43,6 +45,24 @@ body {
   }
   to {
     transform: rotate(360deg);
+  }
+}
+
+@keyframes ticker {
+  from {
+    transform: translateX(0%);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
   }
 }
 
@@ -74,6 +94,38 @@ body {
 }
 .tp-bottom-spacer {
   display: none;
+}
+
+.tp-ticker-wrap {
+  position: sticky;
+  top: 0;
+  z-index: 55;
+  overflow: hidden;
+  white-space: nowrap;
+  background: linear-gradient(90deg, oklch(0.55 0.22 25), oklch(0.70 0.20 45), oklch(0.55 0.22 25));
+  border-bottom: 2px solid oklch(0.85 0.18 90);
+}
+.tp-ticker-track {
+  display: inline-block;
+  white-space: nowrap;
+  animation: ticker 28s linear infinite;
+  padding: 7px 0;
+}
+.tp-ticker-track span {
+  display: inline-block;
+  padding: 0 28px;
+  font-size: 13px;
+  font-weight: 700;
+  color: oklch(0.98 0.02 90);
+}
+
+.tp-shimmer-text {
+  background: linear-gradient(90deg, oklch(0.85 0.18 90) 0%, oklch(0.98 0.05 90) 20%, oklch(0.85 0.18 90) 40%, oklch(0.85 0.18 90) 100%);
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: shimmer 2.5s linear infinite;
 }
 
 @media (max-width: 720px) {
@@ -108,10 +160,10 @@ body {
     right: 0;
     z-index: 60;
     gap: 4px;
-    background: oklch(0.13 0.035 155);
-    border-top: 3px solid oklch(0.8 0.14 85);
+    background: oklch(0.18 0.06 25);
+    border-top: 3px solid oklch(0.85 0.18 90);
     padding: 8px 10px calc(8px + env(safe-area-inset-bottom));
-    box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.4);
+    box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.5);
   }
   .tp-bottom-tabs > div {
     flex: 1;

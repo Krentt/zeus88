@@ -1,5 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
+import confetti from 'canvas-confetti';
 import { supabase } from './lib/supabaseClient';
+
+const CONFETTI_COLORS = ['#ffd54a', '#e5484d', '#c026d3', '#ffffff'];
+const fireConfetti = () => {
+  confetti({ particleCount: 100, spread: 70, origin: { y: 0.4 }, colors: CONFETTI_COLORS });
+  confetti({ particleCount: 60, angle: 60, spread: 55, origin: { x: 0 }, colors: CONFETTI_COLORS });
+  confetti({ particleCount: 60, angle: 120, spread: 55, origin: { x: 1 }, colors: CONFETTI_COLORS });
+};
 
 function formatTime(min) {
   if (min < 1) return 'Baru saja';
@@ -22,7 +30,8 @@ function mapBidRow(row) {
   };
 }
 
-const rankColor = (i) => (i === 0 ? 'oklch(0.85 0.15 90)' : i === 1 ? 'oklch(0.85 0.01 90)' : i === 2 ? 'oklch(0.70 0.13 55)' : 'oklch(0.5 0.05 155)');
+const rankColor = (i) => (i === 0 ? 'oklch(0.85 0.15 90)' : i === 1 ? 'oklch(0.85 0.01 90)' : i === 2 ? 'oklch(0.70 0.13 55)' : 'oklch(0.5 0.05 335)');
+const tickerVerbs = ['pasang', 'gaskeun', 'all-in', 'sikat'];
 
 export default function App() {
   const [candidateRows, setCandidateRows] = useState([]);
@@ -56,6 +65,19 @@ export default function App() {
     setFlashMessage(msg);
     setTimeout(() => setFlashMessage(null), ms);
   };
+
+  useEffect(() => {
+    fireConfetti();
+  }, []);
+
+  const tickerItems = useMemo(
+    () =>
+      records.slice(0, 14).map((r, i) => {
+        const verb = tickerVerbs[i % tickerVerbs.length];
+        return r.bettor + ' baru ' + verb + ' ' + fmtNum(r.coins) + ' Coin ke ' + r.candidate + ' di ' + r.office + '!';
+      }),
+    [records]
+  );
 
   const loadOffices = async () => {
     const { data, error } = await supabase.from('offices').select('id,name,abbr').order('name');
@@ -123,6 +145,7 @@ export default function App() {
       setBalance(row.balance);
       setLoggedIn(true);
       setAuthModalOpen(false);
+      fireConfetti();
       flash(authMode === 'register' ? 'Selamat datang, ' + row.username + '! Kamu dapat 1000 Coin.' : 'Selamat datang kembali, ' + row.username + '!');
     } catch (e) {
       setAuthError(e.message);
@@ -261,7 +284,7 @@ export default function App() {
           width: Math.max(6, Math.round((v.coins / maxVal) * 100)) + '%',
           height: '100%',
           borderRadius: '4px',
-          background: 'linear-gradient(90deg, oklch(0.55 0.19 25), oklch(0.80 0.14 85))',
+          background: 'linear-gradient(90deg, oklch(0.55 0.19 25), oklch(0.82 0.19 88))',
         },
       }));
 
@@ -316,8 +339,8 @@ export default function App() {
     width: '100%',
     padding: '12px 16px',
     borderRadius: '10px',
-    border: '2px solid oklch(0.32 0.06 155)',
-    background: 'oklch(0.16 0.045 155)',
+    border: '2px solid oklch(0.32 0.06 335)',
+    background: 'oklch(0.16 0.045 335)',
     color: 'oklch(0.96 0.01 90)',
     fontSize: '14px',
     outline: 'none',
@@ -331,32 +354,43 @@ export default function App() {
         fontFamily: "'Poppins',sans-serif",
         color: 'oklch(0.96 0.01 90)',
         backgroundImage:
-          'repeating-linear-gradient(45deg, oklch(0.16 0.045 155) 0px, oklch(0.16 0.045 155) 2px, transparent 2px, transparent 40px), radial-gradient(ellipse at 50% -10%, oklch(0.24 0.06 155) 0%, oklch(0.14 0.04 155) 60%)',
+          'repeating-linear-gradient(45deg, oklch(0.16 0.045 335) 0px, oklch(0.16 0.045 335) 2px, transparent 2px, transparent 40px), radial-gradient(ellipse at 50% -10%, oklch(0.30 0.10 335) 0%, oklch(0.14 0.04 335) 60%)',
       }}
     >
+      {/* WIN TICKER */}
+      {tickerItems.length > 0 && (
+        <div className="tp-ticker-wrap">
+          <div className="tp-ticker-track">
+            {tickerItems.concat(tickerItems).map((t, i) => (
+              <span key={i}>{t}</span>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* NAV */}
       <div
         style={{
           position: 'sticky',
-          top: 0,
+          top: tickerItems.length > 0 ? '34px' : 0,
           zIndex: 50,
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
           gap: '16px',
           padding: '14px 28px',
-          background: 'oklch(0.13 0.035 155)',
-          borderBottom: '3px solid oklch(0.80 0.14 85)',
+          background: 'oklch(0.13 0.035 335)',
+          borderBottom: '3px solid oklch(0.82 0.19 88)',
           boxShadow: '0 4px 20px rgba(0,0,0,0.4)',
           flexWrap: 'wrap',
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: '22px', color: 'oklch(0.80 0.14 85)', letterSpacing: '1px' }}>♦</div>
-          <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: '26px', letterSpacing: '2px', color: 'oklch(0.80 0.14 85)', animation: 'glowPulse 3s ease-in-out infinite' }}>
+          <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: '22px', color: 'oklch(0.82 0.19 88)', letterSpacing: '1px' }}>♦</div>
+          <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: '26px', letterSpacing: '2px', color: 'oklch(0.82 0.19 88)', animation: 'glowPulse 3s ease-in-out infinite' }}>
             TEBAK PENEMPATAN
           </div>
-          <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: '22px', color: 'oklch(0.80 0.14 85)', letterSpacing: '1px' }}>♣</div>
+          <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: '22px', color: 'oklch(0.82 0.19 88)', letterSpacing: '1px' }}>♣</div>
         </div>
 
         <div className="tp-nav-tabs" style={{ gap: '8px', flexWrap: 'wrap' }}>
@@ -370,9 +404,9 @@ export default function App() {
                 borderRadius: '999px',
                 fontSize: '14px',
                 fontWeight: 600,
-                background: activeTab === tab.key ? 'oklch(0.80 0.14 85)' : 'transparent',
+                background: activeTab === tab.key ? 'oklch(0.82 0.19 88)' : 'transparent',
                 color: activeTab === tab.key ? 'oklch(0.16 0.04 30)' : 'oklch(0.9 0.01 90)',
-                border: activeTab === tab.key ? '2px solid oklch(0.80 0.14 85)' : '2px solid transparent',
+                border: activeTab === tab.key ? '2px solid oklch(0.82 0.19 88)' : '2px solid transparent',
               }}
             >
               {tab.label}
@@ -387,8 +421,8 @@ export default function App() {
                 display: 'flex',
                 alignItems: 'center',
                 gap: '8px',
-                background: 'oklch(0.20 0.05 155)',
-                border: '2px solid oklch(0.80 0.14 85)',
+                background: 'oklch(0.20 0.05 335)',
+                border: '2px solid oklch(0.82 0.19 88)',
                 borderRadius: '999px',
                 padding: '6px 16px 6px 6px',
               }}
@@ -400,10 +434,10 @@ export default function App() {
                   borderRadius: '50%',
                   background:
                     'conic-gradient(oklch(0.55 0.19 25) 0deg 90deg, oklch(0.96 0.01 90) 90deg 180deg, oklch(0.55 0.19 25) 180deg 270deg, oklch(0.96 0.01 90) 270deg 360deg)',
-                  border: '2px dashed oklch(0.80 0.14 85)',
+                  border: '2px dashed oklch(0.82 0.19 88)',
                 }}
               />
-              <div style={{ fontWeight: 700, fontSize: '15px', color: 'oklch(0.80 0.14 85)' }}>{username} • {fmtNum(balance)} Coin</div>
+              <div style={{ fontWeight: 700, fontSize: '15px', color: 'oklch(0.82 0.19 88)' }}>{username} • {fmtNum(balance)} Coin</div>
               <div
                 style={{ cursor: 'pointer', fontSize: '12px', color: 'oklch(0.7 0.02 100)', textDecoration: 'underline' }}
                 onClick={logout}
@@ -422,7 +456,7 @@ export default function App() {
                   color: 'oklch(0.9 0.01 90)',
                   padding: '9px 16px',
                   borderRadius: '8px',
-                  border: '2px solid oklch(0.5 0.05 155)',
+                  border: '2px solid oklch(0.5 0.05 335)',
                 }}
                 onClick={() => openAuthModal('login')}
               >
@@ -457,7 +491,7 @@ export default function App() {
             maxWidth: '900px',
             margin: '18px auto 0',
             background: 'oklch(0.30 0.14 145)',
-            border: '2px solid oklch(0.80 0.14 85)',
+            border: '2px solid oklch(0.82 0.19 88)',
             color: 'oklch(0.97 0.02 145)',
             padding: '14px 20px',
             borderRadius: '10px',
@@ -475,10 +509,10 @@ export default function App() {
         <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '48px 28px 80px' }}>
           {/* HERO */}
           <div style={{ textAlign: 'center', padding: '20px 0 36px' }}>
-            <div className="tp-hero-title" style={{ fontFamily: "'Bebas Neue',sans-serif", lineHeight: 1.05, letterSpacing: '2px', color: 'oklch(0.96 0.01 90)' }}>
+            <div className="tp-hero-title" style={{ fontFamily: "'Luckiest Guy',cursive", lineHeight: 1.1, letterSpacing: '1px', color: 'oklch(0.96 0.01 90)', textShadow: '3px 3px 0 oklch(0.55 0.22 25 / 0.6)' }}>
               TEBAK PENEMPATANMU,
               <br />
-              <span style={{ color: 'oklch(0.80 0.14 85)', animation: 'glowPulse 3s ease-in-out infinite' }}>MENANGKAN COIN!</span>
+              <span className="tp-shimmer-text" style={{ animation: 'shimmer 2.5s linear infinite, glowPulse 2s ease-in-out infinite' }}>MENANGKAN COIN!</span>
             </div>
             <div style={{ maxWidth: '640px', margin: '18px auto 0', fontSize: '17px', color: 'oklch(0.78 0.02 100)', lineHeight: 1.6 }}>
               Tebak akan ditempatkan di kantor OJK mana orientasi tahun ini, pasang taruhanmu, dan naik ke puncak papan peringkat!
@@ -510,8 +544,8 @@ export default function App() {
               <div
                 key={step.num}
                 style={{
-                  background: 'oklch(0.19 0.05 155)',
-                  border: '2px solid oklch(0.32 0.06 155)',
+                  background: 'oklch(0.19 0.05 335)',
+                  border: '2px solid oklch(0.32 0.06 335)',
                   borderRadius: '14px',
                   padding: '22px',
                   textAlign: 'center',
@@ -523,7 +557,7 @@ export default function App() {
                     height: '44px',
                     borderRadius: '50%',
                     margin: '0 auto 12px',
-                    background: 'oklch(0.80 0.14 85)',
+                    background: 'oklch(0.82 0.19 88)',
                     color: 'oklch(0.16 0.04 30)',
                     fontFamily: "'Bebas Neue',sans-serif",
                     fontSize: '22px',
@@ -546,14 +580,14 @@ export default function App() {
               <div
                 key={stat.label}
                 style={{
-                  background: 'oklch(0.20 0.05 155)',
-                  border: '2px solid oklch(0.80 0.14 85 / 0.4)',
+                  background: 'oklch(0.20 0.05 335)',
+                  border: '2px solid oklch(0.82 0.19 88 / 0.4)',
                   borderRadius: '12px',
                   padding: '20px',
                   textAlign: 'center',
                 }}
               >
-                <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: '32px', color: 'oklch(0.80 0.14 85)' }}>{stat.value}</div>
+                <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: '32px', color: 'oklch(0.82 0.19 88)' }}>{stat.value}</div>
                 <div style={{ fontSize: '13px', color: 'oklch(0.75 0.02 100)', marginTop: '4px', letterSpacing: '0.5px', textTransform: 'uppercase' }}>
                   {stat.label}
                 </div>
@@ -563,42 +597,42 @@ export default function App() {
 
           {/* LEADERBOARDS */}
           <div className="tp-leaderboard-grid" style={{ gap: '24px', marginTop: '40px' }}>
-            <div style={{ background: 'oklch(0.18 0.045 155)', border: '2px solid oklch(0.32 0.06 155)', borderRadius: '16px', padding: '24px' }}>
-              <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: '24px', letterSpacing: '1px', color: 'oklch(0.80 0.14 85)', marginBottom: '16px' }}>
+            <div style={{ background: 'oklch(0.18 0.045 335)', border: '2px solid oklch(0.32 0.06 335)', borderRadius: '16px', padding: '24px' }}>
+              <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: '24px', letterSpacing: '1px', color: 'oklch(0.82 0.19 88)', marginBottom: '16px' }}>
                 KANDIDAT PALING DIINCAR
               </div>
               {topCandidates.map((row) => (
-                <div key={row.name} style={{ display: 'flex', alignItems: 'center', gap: '14px', padding: '10px 0', borderBottom: '1px solid oklch(0.28 0.05 155)' }}>
+                <div key={row.name} style={{ display: 'flex', alignItems: 'center', gap: '14px', padding: '10px 0', borderBottom: '1px solid oklch(0.28 0.05 335)' }}>
                   <div style={row.rankStyle}>{row.rank}</div>
                   <div style={{ flex: 1 }}>
                     <div style={{ fontWeight: 600, fontSize: '15px' }}>{row.name}</div>
-                    <div style={{ height: '6px', borderRadius: '4px', background: 'oklch(0.28 0.05 155)', marginTop: '6px', overflow: 'hidden' }}>
+                    <div style={{ height: '6px', borderRadius: '4px', background: 'oklch(0.28 0.05 335)', marginTop: '6px', overflow: 'hidden' }}>
                       <div style={row.barStyle} />
                     </div>
                   </div>
                   <div style={{ textAlign: 'right', minWidth: '76px' }}>
-                    <div style={{ fontWeight: 700, color: 'oklch(0.80 0.14 85)', fontSize: '14px' }}>{row.coinsLabel}</div>
+                    <div style={{ fontWeight: 700, color: 'oklch(0.82 0.19 88)', fontSize: '14px' }}>{row.coinsLabel}</div>
                     <div style={{ fontSize: '11px', color: 'oklch(0.7 0.02 100)' }}>{row.countLabel}</div>
                   </div>
                 </div>
               ))}
             </div>
 
-            <div style={{ background: 'oklch(0.18 0.045 155)', border: '2px solid oklch(0.32 0.06 155)', borderRadius: '16px', padding: '24px' }}>
-              <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: '24px', letterSpacing: '1px', color: 'oklch(0.80 0.14 85)', marginBottom: '16px' }}>
+            <div style={{ background: 'oklch(0.18 0.045 335)', border: '2px solid oklch(0.32 0.06 335)', borderRadius: '16px', padding: '24px' }}>
+              <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: '24px', letterSpacing: '1px', color: 'oklch(0.82 0.19 88)', marginBottom: '16px' }}>
                 KANTOR TUJUAN TERPANAS
               </div>
               {topOffices.map((row) => (
-                <div key={row.name} style={{ display: 'flex', alignItems: 'center', gap: '14px', padding: '10px 0', borderBottom: '1px solid oklch(0.28 0.05 155)' }}>
+                <div key={row.name} style={{ display: 'flex', alignItems: 'center', gap: '14px', padding: '10px 0', borderBottom: '1px solid oklch(0.28 0.05 335)' }}>
                   <div style={row.rankStyle}>{row.rank}</div>
                   <div style={{ flex: 1 }}>
                     <div style={{ fontWeight: 600, fontSize: '15px' }}>{row.name}</div>
-                    <div style={{ height: '6px', borderRadius: '4px', background: 'oklch(0.28 0.05 155)', marginTop: '6px', overflow: 'hidden' }}>
+                    <div style={{ height: '6px', borderRadius: '4px', background: 'oklch(0.28 0.05 335)', marginTop: '6px', overflow: 'hidden' }}>
                       <div style={row.barStyle} />
                     </div>
                   </div>
                   <div style={{ textAlign: 'right', minWidth: '76px' }}>
-                    <div style={{ fontWeight: 700, color: 'oklch(0.80 0.14 85)', fontSize: '14px' }}>{row.coinsLabel}</div>
+                    <div style={{ fontWeight: 700, color: 'oklch(0.82 0.19 88)', fontSize: '14px' }}>{row.coinsLabel}</div>
                     <div style={{ fontSize: '11px', color: 'oklch(0.7 0.02 100)' }}>{row.countLabel}</div>
                   </div>
                 </div>
@@ -613,8 +647,8 @@ export default function App() {
         <>
           <div style={{ maxWidth: '1000px', margin: '0 auto', padding: '40px 28px 100px' }}>
             {notLoggedIn && (
-              <div style={{ textAlign: 'center', padding: '60px 20px', background: 'oklch(0.19 0.05 155)', border: '2px dashed oklch(0.80 0.14 85)', borderRadius: '16px' }}>
-                <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: '28px', color: 'oklch(0.80 0.14 85)', marginBottom: '10px' }}>DAFTAR DULU YUK!</div>
+              <div style={{ textAlign: 'center', padding: '60px 20px', background: 'oklch(0.19 0.05 335)', border: '2px dashed oklch(0.82 0.19 88)', borderRadius: '16px' }}>
+                <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: '28px', color: 'oklch(0.82 0.19 88)', marginBottom: '10px' }}>DAFTAR DULU YUK!</div>
                 <div style={{ color: 'oklch(0.78 0.02 100)', marginBottom: '22px' }}>Daftar sekarang dan dapatkan 1000 coin gratis untuk mulai pasang taruhan.</div>
                 <div
                   style={{
@@ -640,7 +674,7 @@ export default function App() {
               <div>
                 {showOfficeStep && (
                   <div>
-                    <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: '26px', color: 'oklch(0.80 0.14 85)', letterSpacing: '1px', marginBottom: '6px' }}>
+                    <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: '26px', color: 'oklch(0.82 0.19 88)', letterSpacing: '1px', marginBottom: '6px' }}>
                       LANGKAH 1 — PILIH KANTOR OJK
                     </div>
                     <div style={{ color: 'oklch(0.75 0.02 100)', marginBottom: '16px', fontSize: '14px' }}>
@@ -665,8 +699,8 @@ export default function App() {
                               padding: '14px 12px',
                               borderRadius: '10px',
                               textAlign: 'center',
-                              border: selected ? '2px solid oklch(0.80 0.14 85)' : '2px solid oklch(0.30 0.06 155)',
-                              background: selected ? 'oklch(0.30 0.09 85)' : 'oklch(0.18 0.045 155)',
+                              border: selected ? '2px solid oklch(0.82 0.19 88)' : '2px solid oklch(0.30 0.06 335)',
+                              background: selected ? 'oklch(0.30 0.09 85)' : 'oklch(0.18 0.045 335)',
                             }}
                           >
                             <div style={{ fontWeight: 700, fontSize: '14px' }}>{office.name}</div>
@@ -685,7 +719,7 @@ export default function App() {
                   <div>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px', flexWrap: 'wrap', gap: '10px' }}>
                       <div>
-                        <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: '26px', color: 'oklch(0.80 0.14 85)', letterSpacing: '1px' }}>
+                        <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: '26px', color: 'oklch(0.82 0.19 88)', letterSpacing: '1px' }}>
                           LANGKAH 2 — PILIH KANDIDAT
                         </div>
                         <div style={{ color: 'oklch(0.75 0.02 100)', fontSize: '14px' }}>
@@ -693,7 +727,7 @@ export default function App() {
                         </div>
                       </div>
                       <div
-                        style={{ cursor: 'pointer', fontSize: '13px', color: 'oklch(0.80 0.14 85)', border: '1px solid oklch(0.80 0.14 85)', padding: '8px 14px', borderRadius: '8px' }}
+                        style={{ cursor: 'pointer', fontSize: '13px', color: 'oklch(0.82 0.19 88)', border: '1px solid oklch(0.82 0.19 88)', padding: '8px 14px', borderRadius: '8px' }}
                         onClick={backToOffice}
                       >
                         ← Ganti Kantor
@@ -708,7 +742,7 @@ export default function App() {
                       style={{ ...inputStyle, marginBottom: '14px' }}
                     />
 
-                    <div style={{ maxHeight: '420px', overflowY: 'auto', border: '2px solid oklch(0.30 0.06 155)', borderRadius: '12px' }}>
+                    <div style={{ maxHeight: '420px', overflowY: 'auto', border: '2px solid oklch(0.30 0.06 335)', borderRadius: '12px' }}>
                       {candidatesView.map((c, idx) => {
                         const checked = selectedBids[c] !== undefined;
                         return (
@@ -719,15 +753,15 @@ export default function App() {
                               alignItems: 'center',
                               gap: '14px',
                               padding: '12px 16px',
-                              borderBottom: '1px solid oklch(0.24 0.05 155)',
-                              background: idx % 2 === 0 ? 'oklch(0.16 0.04 155)' : 'oklch(0.185 0.045 155)',
+                              borderBottom: '1px solid oklch(0.24 0.05 335)',
+                              background: idx % 2 === 0 ? 'oklch(0.16 0.04 335)' : 'oklch(0.185 0.045 335)',
                             }}
                           >
                             <input
                               type="checkbox"
                               checked={checked}
                               onChange={() => toggleCandidate(c)}
-                              style={{ width: '18px', height: '18px', accentColor: 'oklch(0.80 0.14 85)', cursor: 'pointer' }}
+                              style={{ width: '18px', height: '18px', accentColor: 'oklch(0.82 0.19 88)', cursor: 'pointer' }}
                             />
                             <div style={{ flex: 1, fontSize: '14px', fontWeight: 500 }}>{c}</div>
                             <div style={{ fontSize: '11px', color: 'oklch(0.7 0.02 100)', minWidth: '70px' }}>
@@ -745,8 +779,8 @@ export default function App() {
                                 width: '100px',
                                 padding: '8px 10px',
                                 borderRadius: '8px',
-                                border: '2px solid oklch(0.32 0.06 155)',
-                                background: 'oklch(0.14 0.04 155)',
+                                border: '2px solid oklch(0.32 0.06 335)',
+                                background: 'oklch(0.14 0.04 335)',
                                 color: 'oklch(0.96 0.01 90)',
                                 fontSize: '13px',
                                 outline: 'none',
@@ -770,8 +804,8 @@ export default function App() {
                 position: 'sticky',
                 bottom: 0,
                 zIndex: 40,
-                background: 'oklch(0.12 0.03 155)',
-                borderTop: '3px solid oklch(0.80 0.14 85)',
+                background: 'oklch(0.12 0.03 335)',
+                borderTop: '3px solid oklch(0.82 0.19 88)',
                 padding: '16px 28px',
                 display: 'flex',
                 alignItems: 'center',
@@ -788,7 +822,7 @@ export default function App() {
                 </div>
                 <div>
                   <div style={{ fontSize: '11px', color: 'oklch(0.7 0.02 100)', textTransform: 'uppercase' }}>Total Taruhan</div>
-                  <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: '20px', color: 'oklch(0.80 0.14 85)' }}>{fmtNum(totalStake)} Coin</div>
+                  <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: '20px', color: 'oklch(0.82 0.19 88)' }}>{fmtNum(totalStake)} Coin</div>
                 </div>
                 <div>
                   <div style={{ fontSize: '11px', color: 'oklch(0.7 0.02 100)', textTransform: 'uppercase' }}>Sisa Saldo</div>
@@ -821,7 +855,7 @@ export default function App() {
       {/* DAFTAR TARUHAN TAB */}
       {isList && (
         <div style={{ maxWidth: '1100px', margin: '0 auto', padding: '40px 28px 80px' }}>
-          <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: '28px', color: 'oklch(0.80 0.14 85)', letterSpacing: '1px', marginBottom: '6px' }}>
+          <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: '28px', color: 'oklch(0.82 0.19 88)', letterSpacing: '1px', marginBottom: '6px' }}>
             DAFTAR TARUHAN SAAT INI
           </div>
           <div style={{ color: 'oklch(0.75 0.02 100)', fontSize: '14px', marginBottom: '20px' }}>
@@ -846,8 +880,8 @@ export default function App() {
                   cursor: 'pointer',
                   padding: '12px 16px',
                   borderRadius: '10px',
-                  border: officeFilterOpen ? '2px solid oklch(0.80 0.14 85)' : '2px solid oklch(0.32 0.06 155)',
-                  background: 'oklch(0.16 0.045 155)',
+                  border: officeFilterOpen ? '2px solid oklch(0.82 0.19 88)' : '2px solid oklch(0.32 0.06 335)',
+                  background: 'oklch(0.16 0.045 335)',
                   color: 'oklch(0.96 0.01 90)',
                   fontSize: '14px',
                   display: 'flex',
@@ -873,8 +907,8 @@ export default function App() {
                       left: 0,
                       right: 0,
                       zIndex: 91,
-                      background: 'oklch(0.16 0.045 155)',
-                      border: '2px solid oklch(0.80 0.14 85)',
+                      background: 'oklch(0.16 0.045 335)',
+                      border: '2px solid oklch(0.82 0.19 88)',
                       borderRadius: '10px',
                       overflow: 'hidden',
                       boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
@@ -890,8 +924,8 @@ export default function App() {
                         width: '100%',
                         padding: '10px 14px',
                         border: 'none',
-                        borderBottom: '1px solid oklch(0.32 0.06 155)',
-                        background: 'oklch(0.14 0.04 155)',
+                        borderBottom: '1px solid oklch(0.32 0.06 335)',
+                        background: 'oklch(0.14 0.04 335)',
                         color: 'oklch(0.96 0.01 90)',
                         fontSize: '14px',
                         outline: 'none',
@@ -926,17 +960,17 @@ export default function App() {
             </div>
           </div>
 
-          <div style={{ border: '2px solid oklch(0.30 0.06 155)', borderRadius: '14px', overflow: 'hidden' }}>
+          <div style={{ border: '2px solid oklch(0.30 0.06 335)', borderRadius: '14px', overflow: 'hidden' }}>
             <div
               className="tp-list-row"
               style={{
                 gap: '10px',
                 padding: '12px 18px',
-                background: 'oklch(0.22 0.055 155)',
+                background: 'oklch(0.22 0.055 335)',
                 fontSize: '12px',
                 textTransform: 'uppercase',
                 letterSpacing: '0.5px',
-                color: 'oklch(0.80 0.14 85)',
+                color: 'oklch(0.82 0.19 88)',
                 fontWeight: 700,
               }}
             >
@@ -955,13 +989,13 @@ export default function App() {
                     gap: '10px',
                     padding: '12px 18px',
                     fontSize: '13px',
-                    background: idx % 2 === 0 ? 'oklch(0.15 0.035 155)' : 'oklch(0.175 0.04 155)',
-                    borderBottom: '1px solid oklch(0.22 0.05 155)',
+                    background: idx % 2 === 0 ? 'oklch(0.15 0.035 335)' : 'oklch(0.175 0.04 335)',
+                    borderBottom: '1px solid oklch(0.22 0.05 335)',
                   }}
                 >
                   <div style={{ fontWeight: 600 }}>{rec.candidate}</div>
                   <div style={{ color: 'oklch(0.78 0.02 100)' }}>{rec.office}</div>
-                  <div style={{ fontWeight: 700, color: 'oklch(0.80 0.14 85)' }}>{fmtNum(rec.coins)}</div>
+                  <div style={{ fontWeight: 700, color: 'oklch(0.82 0.19 88)' }}>{fmtNum(rec.coins)}</div>
                   <div style={{ color: 'oklch(0.78 0.02 100)' }}>{rec.bettor}</div>
                   <div style={{ color: 'oklch(0.65 0.02 100)', fontSize: '12px' }}>{formatTime(rec.minutesAgo)}</div>
                 </div>
@@ -972,7 +1006,7 @@ export default function App() {
       )}
 
       {/* FOOTER */}
-      <div style={{ textAlign: 'center', padding: '24px', color: 'oklch(0.6 0.02 100)', fontSize: '12px', borderTop: '1px solid oklch(0.25 0.05 155)' }}>
+      <div style={{ textAlign: 'center', padding: '24px', color: 'oklch(0.6 0.02 100)', fontSize: '12px', borderTop: '1px solid oklch(0.25 0.05 335)' }}>
         ♠ Permainan tebak-tebakan untuk hiburan internal. Coin tidak memiliki nilai tukar uang. ♥
       </div>
       <div className="tp-bottom-spacer" />
@@ -992,7 +1026,7 @@ export default function App() {
               flexDirection: 'column',
               alignItems: 'center',
               gap: '2px',
-              background: activeTab === tab.key ? 'oklch(0.80 0.14 85)' : 'transparent',
+              background: activeTab === tab.key ? 'oklch(0.82 0.19 88)' : 'transparent',
               color: activeTab === tab.key ? 'oklch(0.16 0.04 30)' : 'oklch(0.9 0.01 90)',
             }}
           >
@@ -1021,8 +1055,8 @@ export default function App() {
             style={{
               width: '380px',
               maxWidth: '100%',
-              background: 'oklch(0.18 0.045 155)',
-              border: '2px solid oklch(0.80 0.14 85)',
+              background: 'oklch(0.18 0.045 335)',
+              border: '2px solid oklch(0.82 0.19 88)',
               borderRadius: '16px',
               padding: '28px',
             }}
@@ -1039,7 +1073,7 @@ export default function App() {
                   fontFamily: "'Bebas Neue',sans-serif",
                   letterSpacing: '1px',
                   fontSize: '16px',
-                  background: authMode === 'register' ? 'oklch(0.80 0.14 85)' : 'transparent',
+                  background: authMode === 'register' ? 'oklch(0.82 0.19 88)' : 'transparent',
                   color: authMode === 'register' ? 'oklch(0.16 0.04 30)' : 'oklch(0.9 0.01 90)',
                 }}
                 onClick={() => { setAuthMode('register'); setAuthError(null); }}
@@ -1056,7 +1090,7 @@ export default function App() {
                   fontFamily: "'Bebas Neue',sans-serif",
                   letterSpacing: '1px',
                   fontSize: '16px',
-                  background: authMode === 'login' ? 'oklch(0.80 0.14 85)' : 'transparent',
+                  background: authMode === 'login' ? 'oklch(0.82 0.19 88)' : 'transparent',
                   color: authMode === 'login' ? 'oklch(0.16 0.04 30)' : 'oklch(0.9 0.01 90)',
                 }}
                 onClick={() => { setAuthMode('login'); setAuthError(null); }}
