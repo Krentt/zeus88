@@ -235,9 +235,9 @@ export default function App() {
   const isList = activeTab === 'list';
 
   const tabDef = [
-    { key: 'beranda', label: 'Beranda', icon: '🏠' },
-    { key: 'bid', label: 'Pasang Taruhan', icon: '🎲' },
-    { key: 'list', label: 'Daftar Taruhan', icon: '📋' },
+    { key: 'beranda', label: 'Beranda' },
+    { key: 'bid', label: 'Pasang Taruhan' },
+    { key: 'list', label: 'Daftar Taruhan' },
   ];
 
   const { candAgg, offAgg, totalCoins, bettorCount } = useMemo(() => {
@@ -1019,19 +1019,17 @@ export default function App() {
             onClick={() => setActiveTab(tab.key)}
             style={{
               cursor: 'pointer',
-              padding: '6px 4px',
+              padding: '12px 4px',
               borderRadius: '10px',
               textAlign: 'center',
               display: 'flex',
-              flexDirection: 'column',
               alignItems: 'center',
-              gap: '2px',
+              justifyContent: 'center',
               background: activeTab === tab.key ? 'oklch(0.82 0.19 88)' : 'transparent',
               color: activeTab === tab.key ? 'oklch(0.16 0.04 30)' : 'oklch(0.9 0.01 90)',
             }}
           >
-            <div style={{ fontSize: '20px', lineHeight: 1 }}>{tab.icon}</div>
-            <div style={{ fontSize: '10px', fontWeight: 600 }}>{tab.label}</div>
+            <div style={{ fontSize: '12px', fontWeight: 600 }}>{tab.label}</div>
           </div>
         ))}
       </div>
