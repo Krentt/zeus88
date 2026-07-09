@@ -1,6 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
 import confetti from 'canvas-confetti';
 import { supabase } from './lib/supabaseClient';
+import gachaCherry from './assets/gacha/cherry.png';
+import gachaLemon from './assets/gacha/lemon.png';
+import gachaBell from './assets/gacha/bell.png';
+import gachaStar from './assets/gacha/star.png';
+import gachaGrape from './assets/gacha/grape.png';
+import gachaSeven from './assets/gacha/seven.png';
 
 const CONFETTI_COLORS = ['#ffd54a', '#e5484d', '#c026d3', '#ffffff'];
 const fireConfetti = () => {
@@ -33,6 +39,24 @@ function mapBidRow(row) {
 const rankColor = (i) => (i === 0 ? 'oklch(0.85 0.15 90)' : i === 1 ? 'oklch(0.85 0.01 90)' : i === 2 ? 'oklch(0.70 0.13 55)' : 'oklch(0.5 0.05 335)');
 const tickerVerbs = ['pasang', 'gaskeun', 'all-in', 'sikat'];
 
+// dummy placeholders — replace the files in src/assets/gacha/*.svg with your own art
+// (keep the same filenames, or update the imports above to point at new files/extensions)
+const SLOT_SYMBOLS = {
+  cherry: gachaCherry,
+  lemon: gachaLemon,
+  bell: gachaBell,
+  star: gachaStar,
+  grape: gachaGrape,
+  seven: gachaSeven,
+};
+const SLOT_KEYS = Object.keys(SLOT_SYMBOLS);
+const isFreeSpinAvailable = (lastFreeSpinAt) => {
+  if (!lastFreeSpinAt) return true;
+  const last = new Date(lastFreeSpinAt);
+  const now = new Date();
+  return last.toISOString().slice(0, 10) !== now.toISOString().slice(0, 10);
+};
+
 export default function App() {
   const [candidateRows, setCandidateRows] = useState([]);
   const candidates = useMemo(() => candidateRows.map((c) => c.name), [candidateRows]);
@@ -44,6 +68,12 @@ export default function App() {
   const [userId, setUserId] = useState(null);
   const [username, setUsername] = useState('');
   const [balance, setBalance] = useState(0);
+  const [lastFreeSpinAt, setLastFreeSpinAt] = useState(null);
+  const [gachaOpen, setGachaOpen] = useState(false);
+  const [gachaSpinning, setGachaSpinning] = useState(false);
+  const [gachaReels, setGachaReels] = useState(['seven', 'seven', 'seven']);
+  const [gachaResult, setGachaResult] = useState(null);
+  const [gachaError, setGachaError] = useState(null);
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [authMode, setAuthMode] = useState('register');
   const [authUsername, setAuthUsername] = useState('');
@@ -143,6 +173,7 @@ export default function App() {
       setUserId(row.id);
       setUsername(row.username);
       setBalance(row.balance);
+      setLastFreeSpinAt(row.last_free_spin_at);
       setLoggedIn(true);
       setAuthModalOpen(false);
       fireConfetti();
@@ -159,9 +190,60 @@ export default function App() {
     setUserId(null);
     setUsername('');
     setBalance(0);
+    setLastFreeSpinAt(null);
     setSelectedOffice(null);
     setSelectedBids({});
     setActiveTab('beranda');
+  };
+
+  const openGacha = () => {
+    setGachaResult(null);
+    setGachaError(null);
+    setGachaOpen(true);
+  };
+  const closeGacha = () => {
+    if (gachaSpinning) return;
+    setGachaOpen(false);
+  };
+
+  const spinGacha = async () => {
+    if (!loggedIn || gachaSpinning) return;
+    const willBeFree = isFreeSpinAvailable(lastFreeSpinAt);
+    if (!willBeFree && balance < 10) {
+      setGachaError('Saldo kamu kurang dari 10 Coin.');
+      return;
+    }
+    setGachaError(null);
+    setGachaResult(null);
+    setGachaSpinning(true);
+
+    const spinTicker = setInterval(() => {
+      setGachaReels([
+        SLOT_KEYS[Math.floor(Math.random() * SLOT_KEYS.length)],
+        SLOT_KEYS[Math.floor(Math.random() * SLOT_KEYS.length)],
+        SLOT_KEYS[Math.floor(Math.random() * SLOT_KEYS.length)],
+      ]);
+    }, 90);
+
+    try {
+      const [{ data, error }] = await Promise.all([
+        supabase.rpc('spin_slot', { p_user_id: userId }),
+        new Promise((resolve) => setTimeout(resolve, 1100)),
+      ]);
+      clearInterval(spinTicker);
+      if (error) throw error;
+      const row = data[0];
+      setGachaReels(row.symbols);
+      setBalance(row.new_balance);
+      if (row.was_free) setLastFreeSpinAt(new Date().toISOString());
+      setGachaResult({ reward: row.reward, wasFree: row.was_free });
+      if (row.reward >= 1000) fireConfetti();
+    } catch (e) {
+      clearInterval(spinTicker);
+      setGachaError(e.message.includes('insufficient_balance') ? 'Saldo kamu kurang dari 10 Coin.' : 'Gagal spin, coba lagi.');
+    } finally {
+      setGachaSpinning(false);
+    }
   };
 
   const goToBid = () => setActiveTab('bid');
@@ -535,6 +617,51 @@ export default function App() {
               >
                 PASANG TARUHAN SEKARANG
               </div>
+            </div>
+          </div>
+
+          {/* GACHA BANNER */}
+          <div
+            onClick={openGacha}
+            style={{
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '16px',
+              flexWrap: 'wrap',
+              background: 'linear-gradient(90deg, oklch(0.30 0.10 335), oklch(0.24 0.12 300))',
+              border: '2px solid oklch(0.82 0.19 88)',
+              borderRadius: '16px',
+              padding: '20px 26px',
+              margin: '10px 0 36px',
+              boxShadow: '0 4px 20px rgba(0,0,0,0.35)',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+              <div style={{ fontSize: '40px', animation: 'chipSpin 4s linear infinite' }}>🎰</div>
+              <div>
+                <div className="tp-shimmer-text" style={{ fontFamily: "'Luckiest Guy',cursive", fontSize: '22px', letterSpacing: '1px' }}>
+                  GACHA COIN!
+                </div>
+                <div style={{ fontSize: '13px', color: 'oklch(0.85 0.02 100)' }}>
+                  Spin gratis 1x/hari — jackpot 1000 Coin! Mau lagi? 10 Coin/spin.
+                </div>
+              </div>
+            </div>
+            <div
+              style={{
+                fontFamily: "'Bebas Neue',sans-serif",
+                fontSize: '16px',
+                letterSpacing: '1px',
+                background: 'oklch(0.82 0.19 88)',
+                color: 'oklch(0.16 0.04 30)',
+                padding: '10px 22px',
+                borderRadius: '8px',
+                border: '2px solid oklch(0.55 0.12 85)',
+              }}
+            >
+              MAIN SEKARANG
             </div>
           </div>
 
@@ -1140,6 +1267,127 @@ export default function App() {
               >
                 {authLoading ? 'MEMPROSES...' : authMode === 'register' ? 'DAFTAR • +1000 COIN' : 'MASUK'}
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* GACHA MODAL */}
+      {gachaOpen && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 100,
+            background: 'rgba(0,0,0,0.7)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '20px',
+          }}
+          onClick={closeGacha}
+        >
+          <div
+            style={{
+              width: '380px',
+              maxWidth: '100%',
+              background: 'linear-gradient(180deg, oklch(0.22 0.08 335), oklch(0.15 0.05 335))',
+              border: '3px solid oklch(0.82 0.19 88)',
+              borderRadius: '20px',
+              padding: '28px',
+              textAlign: 'center',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="tp-shimmer-text" style={{ fontFamily: "'Luckiest Guy',cursive", fontSize: '26px', letterSpacing: '1px', marginBottom: '18px' }}>
+              GACHA COIN
+            </div>
+
+            <div
+              style={{
+                display: 'flex',
+                gap: '10px',
+                justifyContent: 'center',
+                marginBottom: '20px',
+                background: 'oklch(0.10 0.03 335)',
+                border: '2px solid oklch(0.4 0.1 335)',
+                borderRadius: '14px',
+                padding: '18px 10px',
+              }}
+            >
+              {gachaReels.map((sym, i) => (
+                <div
+                  key={i}
+                  style={{
+                    width: '80px',
+                    height: '80px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    background: 'oklch(0.96 0.01 90)',
+                    borderRadius: '10px',
+                    border: '2px solid oklch(0.82 0.19 88)',
+                    overflow: 'hidden',
+                  }}
+                >
+                  <img src={SLOT_SYMBOLS[sym]} alt={sym} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                </div>
+              ))}
+            </div>
+
+            {!loggedIn && (
+              <div style={{ color: 'oklch(0.85 0.02 100)', fontSize: '14px', marginBottom: '16px' }}>
+                Daftar / masuk dulu buat main gacha.
+              </div>
+            )}
+
+            {loggedIn && gachaResult && (
+              <div
+                style={{
+                  marginBottom: '16px',
+                  fontSize: '15px',
+                  fontWeight: 700,
+                  color: gachaResult.reward > 0 ? 'oklch(0.82 0.19 88)' : 'oklch(0.8 0.02 100)',
+                }}
+              >
+                {gachaResult.reward >= 1000
+                  ? '🎉 JACKPOT! +' + fmtNum(gachaResult.reward) + ' Coin!'
+                  : gachaResult.reward > 0
+                  ? '+' + fmtNum(gachaResult.reward) + ' Coin!'
+                  : 'Belum beruntung, coba lagi!'}
+              </div>
+            )}
+
+            {gachaError && <div style={{ color: 'oklch(0.7 0.19 25)', fontSize: '13px', marginBottom: '16px' }}>{gachaError}</div>}
+
+            {loggedIn && (
+              <div style={{ fontSize: '13px', color: 'oklch(0.8 0.02 100)', marginBottom: '14px' }}>
+                Saldo: <b style={{ color: 'oklch(0.96 0.01 90)' }}>{fmtNum(balance)} Coin</b>
+              </div>
+            )}
+
+            <div
+              style={{
+                cursor: !loggedIn || gachaSpinning ? 'not-allowed' : 'pointer',
+                opacity: gachaSpinning ? 0.6 : 1,
+                fontFamily: "'Bebas Neue',sans-serif",
+                fontSize: '18px',
+                letterSpacing: '1px',
+                background: 'linear-gradient(180deg, oklch(0.82 0.15 85), oklch(0.68 0.16 80))',
+                color: 'oklch(0.16 0.04 30)',
+                padding: '14px',
+                borderRadius: '10px',
+                border: '2px solid oklch(0.55 0.12 85)',
+              }}
+              onClick={() => loggedIn && !gachaSpinning && spinGacha()}
+            >
+              {gachaSpinning
+                ? 'SPINNING...'
+                : !loggedIn
+                ? 'MASUK DULU'
+                : isFreeSpinAvailable(lastFreeSpinAt)
+                ? 'SPIN GRATIS 🎰'
+                : 'SPIN • 10 COIN 🎰'}
             </div>
           </div>
         </div>

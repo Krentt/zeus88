@@ -7,14 +7,19 @@ create table if not exists users (
   username text unique not null,
   password_hash text not null,
   balance integer not null default 0,
+  last_free_spin_at timestamptz,
   created_at timestamptz not null default now()
 );
+alter table users add column if not exists last_free_spin_at timestamptz;
 
 alter table users enable row level security;
 -- no policies: table only reachable through the security definer functions below
 
+drop function if exists register_user(text, text);
+drop function if exists login_user(text, text);
+
 create or replace function register_user(p_username text, p_password text)
-returns table(id uuid, username text, balance integer)
+returns table(id uuid, username text, balance integer, last_free_spin_at timestamptz)
 language plpgsql
 security definer
 set search_path = public, extensions
@@ -29,19 +34,19 @@ begin
   return query
   insert into users (username, password_hash, balance)
   values (p_username, crypt(p_password, gen_salt('bf')), 1000)
-  returning users.id, users.username, users.balance;
+  returning users.id, users.username, users.balance, users.last_free_spin_at;
 end;
 $$;
 
 create or replace function login_user(p_username text, p_password text)
-returns table(id uuid, username text, balance integer)
+returns table(id uuid, username text, balance integer, last_free_spin_at timestamptz)
 language plpgsql
 security definer
 set search_path = public, extensions
 as $$
 begin
   return query
-  select u.id, u.username, u.balance
+  select u.id, u.username, u.balance, u.last_free_spin_at
   from users u
   where u.username = p_username
     and u.password_hash = crypt(p_password, u.password_hash);
@@ -166,3 +171,105 @@ $$;
 
 revoke all on function place_bid(uuid, uuid, uuid, integer) from public;
 grant execute on function place_bid(uuid, uuid, uuid, integer) to anon, authenticated;
+
+-- ============ GACHA SLOT ============
+-- symbols: cherry, lemon, bell, star, grape (regular) + seven (jackpot, rare)
+-- payout: 3 different = 0, any 2 same = 20, 3 same regular = 100, 3x seven = 1000
+-- 1 free spin per user per UTC day, otherwise costs 10 coin per spin.
+
+create table if not exists spins (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references users(id),
+  username text not null,
+  symbols text[] not null,
+  reward integer not null,
+  was_free boolean not null,
+  created_at timestamptz not null default now()
+);
+
+alter table spins enable row level security;
+
+drop policy if exists "spins are publicly readable" on spins;
+create policy "spins are publicly readable"
+  on spins for select
+  using (true);
+-- no direct insert policy — writes only go through spin_slot() below.
+
+create or replace function pick_slot_symbol()
+returns text
+language sql
+as $$
+  select case
+    when r < 0.30 then 'cherry'
+    when r < 0.55 then 'lemon'
+    when r < 0.75 then 'bell'
+    when r < 0.90 then 'star'
+    when r < 0.98 then 'grape'
+    else 'seven'
+  end
+  from (select random() as r) s;
+$$;
+
+drop function if exists spin_slot(uuid);
+
+create or replace function spin_slot(p_user_id uuid)
+returns table(symbols text[], reward integer, was_free boolean, new_balance integer)
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_username text;
+  v_balance integer;
+  v_last_free timestamptz;
+  v_is_free boolean;
+  v_symbols text[];
+  v_reward integer;
+  v_new_balance integer;
+  r1 text;
+  r2 text;
+  r3 text;
+begin
+  select username, balance, last_free_spin_at into v_username, v_balance, v_last_free
+  from users where id = p_user_id
+  for update;
+
+  if v_username is null then
+    raise exception 'user_not_found';
+  end if;
+
+  v_is_free := v_last_free is null or v_last_free < date_trunc('day', now() at time zone 'utc');
+
+  if not v_is_free and v_balance < 10 then
+    raise exception 'insufficient_balance';
+  end if;
+
+  r1 := pick_slot_symbol();
+  r2 := pick_slot_symbol();
+  r3 := pick_slot_symbol();
+  v_symbols := array[r1, r2, r3];
+
+  if r1 = r2 and r2 = r3 then
+    v_reward := case when r1 = 'seven' then 1000 else 100 end;
+  elsif r1 = r2 or r2 = r3 or r1 = r3 then
+    v_reward := 20;
+  else
+    v_reward := 0;
+  end if;
+
+  v_new_balance := v_balance + v_reward - (case when v_is_free then 0 else 10 end);
+
+  update users
+  set balance = v_new_balance,
+      last_free_spin_at = case when v_is_free then now() else last_free_spin_at end
+  where id = p_user_id;
+
+  insert into spins (user_id, username, symbols, reward, was_free)
+  values (p_user_id, v_username, v_symbols, v_reward, v_is_free);
+
+  return query select v_symbols, v_reward, v_is_free, v_new_balance;
+end;
+$$;
+
+revoke all on function spin_slot(uuid) from public;
+grant execute on function spin_slot(uuid) to anon, authenticated;
