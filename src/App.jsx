@@ -102,16 +102,19 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    let loaded = 0;
     let cancelled = false;
     const urls = Object.values(SLOT_SYMBOLS);
-    urls.forEach((src) => {
-      const img = new Image();
-      img.onload = img.onerror = () => {
-        loaded += 1;
-        if (!cancelled && loaded === urls.length) setGachaImagesReady(true);
-      };
-      img.src = src;
+    Promise.all(
+      urls.map(
+        (src) =>
+          new Promise((resolve) => {
+            const img = new Image();
+            img.src = src;
+            (img.decode ? img.decode() : Promise.resolve()).catch(() => {}).finally(resolve);
+          })
+      )
+    ).then(() => {
+      if (!cancelled) setGachaImagesReady(true);
     });
     return () => {
       cancelled = true;
@@ -1346,7 +1349,11 @@ export default function App() {
                     overflow: 'hidden',
                   }}
                 >
-                  <img src={SLOT_SYMBOLS[sym]} alt={sym} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  {gachaImagesReady ? (
+                    <img src={SLOT_SYMBOLS[sym]} alt={sym} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  ) : (
+                    <div style={{ width: '24px', height: '24px', borderRadius: '50%', border: '3px solid oklch(0.82 0.19 88 / 0.3)', borderTopColor: 'oklch(0.82 0.19 88)', animation: 'chipSpin 0.8s linear infinite' }} />
+                  )}
                 </div>
               ))}
             </div>
