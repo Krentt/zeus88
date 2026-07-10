@@ -90,6 +90,9 @@ export default function App() {
   const [gachaImagesReady, setGachaImagesReady] = useState(false);
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [authMode, setAuthMode] = useState('register');
+  const [authFullName, setAuthFullName] = useState('');
+  const [authConsent, setAuthConsent] = useState(false);
+  const [termsOpen, setTermsOpen] = useState(false);
   const [authUsername, setAuthUsername] = useState('');
   const [authPassword, setAuthPassword] = useState('');
   const [authError, setAuthError] = useState(null);
@@ -176,6 +179,8 @@ export default function App() {
 
   const openAuthModal = (mode) => {
     setAuthMode(mode);
+    setAuthFullName('');
+    setAuthConsent(false);
     setAuthUsername('');
     setAuthPassword('');
     setAuthError(null);
@@ -188,6 +193,14 @@ export default function App() {
 
   const submitAuth = async () => {
     setAuthError(null);
+    if (authMode === 'register' && authFullName.trim().length < 3) {
+      setAuthError('Nama lengkap minimal 3 karakter.');
+      return;
+    }
+    if (authMode === 'register' && !authConsent) {
+      setAuthError('Centang dulu persetujuan penggunaan nama kamu.');
+      return;
+    }
     if (authUsername.trim().length < 3) {
       setAuthError('Username minimal 3 karakter.');
       return;
@@ -198,13 +211,22 @@ export default function App() {
     }
     setAuthLoading(true);
     try {
-      const rpcName = authMode === 'register' ? 'register_user' : 'login_user';
-      const { data, error } = await supabase.rpc(rpcName, {
-        p_username: authUsername.trim(),
-        p_password: authPassword,
-      });
+      const { data, error } =
+        authMode === 'register'
+          ? await supabase.rpc('register_user', {
+              p_full_name: authFullName.trim(),
+              p_username: authUsername.trim(),
+              p_password: authPassword,
+            })
+          : await supabase.rpc('login_user', {
+              p_username: authUsername.trim(),
+              p_password: authPassword,
+            });
       if (error) {
         if (error.message.includes('username_taken')) throw new Error('Username sudah dipakai.');
+        if (error.message.includes('name_not_found')) throw new Error('Kamu bukan peserta yang terdaftar. Pastikan kamu memakai nama lengkap yang sesuai!');
+        if (error.message.includes('name_already_registered')) throw new Error('Nama ini sudah pernah dipakai untuk daftar. Kalau ini kamu, coba menu Masuk.');
+        if (error.message.includes('invalid_name')) throw new Error('Nama lengkap minimal 3 karakter.');
         if (error.message.includes('invalid_input')) throw new Error('Username minimal 3 karakter, password minimal 6 karakter.');
         if (error.message.includes('belum dikonfigurasi')) throw error;
         throw new Error(authMode === 'register' ? 'Gagal daftar. Coba lagi.' : 'Gagal masuk. Coba lagi.');
@@ -1272,13 +1294,50 @@ export default function App() {
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              {authMode === 'register' && (
+                <div>
+                  <input
+                    type="text"
+                    placeholder="Nama Lengkap (sesuai data resmi)"
+                    value={authFullName}
+                    onChange={(e) => setAuthFullName(e.target.value)}
+                    style={inputStyle}
+                    autoFocus
+                  />
+                  <div style={{ fontSize: '11px', color: 'oklch(0.7 0.02 100)', marginTop: '6px', lineHeight: 1.4 }}>
+                    Cuma buat verifikasi kamu peserta internal — bukan username kamu. Username buat login ada di bawah.
+                  </div>
+                  <label style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', marginTop: '12px', cursor: 'pointer' }}>
+                    <input
+                      type="checkbox"
+                      checked={authConsent}
+                      onChange={(e) => setAuthConsent(e.target.checked)}
+                      style={{ marginTop: '3px', width: '16px', height: '16px', accentColor: 'oklch(0.82 0.19 88)', cursor: 'pointer', flexShrink: 0 }}
+                    />
+                    <span style={{ fontSize: '12px', color: 'oklch(0.85 0.02 100)', lineHeight: 1.4 }}>
+                      Saya setuju nama saya digunakan untuk keperluan verifikasi identitas peserta & game internal ini. Baca selengkapnya di{' '}
+                      <span
+                        style={{ textDecoration: 'underline', color: 'oklch(0.82 0.19 88)', cursor: 'pointer' }}
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          setTermsOpen(true);
+                        }}
+                      >
+                        Ketentuan &amp; Privasi
+                      </span>
+                      .
+                    </span>
+                  </label>
+                </div>
+              )}
               <input
                 type="text"
                 placeholder="Username"
                 value={authUsername}
                 onChange={(e) => setAuthUsername(e.target.value)}
                 style={inputStyle}
-                autoFocus
+                autoFocus={authMode === 'login'}
               />
               <input
                 type="password"
@@ -1295,8 +1354,8 @@ export default function App() {
 
               <div
                 style={{
-                  cursor: authLoading ? 'wait' : 'pointer',
-                  opacity: authLoading ? 0.6 : 1,
+                  cursor: authLoading || (authMode === 'register' && !authConsent) ? 'not-allowed' : 'pointer',
+                  opacity: authLoading || (authMode === 'register' && !authConsent) ? 0.5 : 1,
                   textAlign: 'center',
                   fontFamily: "'Bebas Neue',sans-serif",
                   fontSize: '18px',
@@ -1308,10 +1367,84 @@ export default function App() {
                   border: '2px solid oklch(0.55 0.12 85)',
                   marginTop: '4px',
                 }}
-                onClick={() => !authLoading && submitAuth()}
+                onClick={() => !authLoading && (authMode === 'login' || authConsent) && submitAuth()}
               >
                 {authLoading ? 'MEMPROSES...' : authMode === 'register' ? 'DAFTAR • +1000 COIN' : 'MASUK'}
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* TERMS & PRIVACY MODAL */}
+      {termsOpen && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 110,
+            background: 'rgba(0,0,0,0.7)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '20px',
+          }}
+          onClick={() => setTermsOpen(false)}
+        >
+          <div
+            style={{
+              width: '540px',
+              maxWidth: '100%',
+              maxHeight: '80vh',
+              overflowY: 'auto',
+              background: 'oklch(0.18 0.045 335)',
+              border: '2px solid oklch(0.82 0.19 88)',
+              borderRadius: '16px',
+              padding: '28px',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: '22px', letterSpacing: '1px', color: 'oklch(0.82 0.19 88)', marginBottom: '4px' }}>
+              🎲 Sebelum Mulai — Baca Dulu Ya!
+            </div>
+            <div style={{ fontSize: '14px', color: 'oklch(0.9 0.01 90)', marginBottom: '18px' }}>
+              Selamat datang di Tebak Penempatan! 🎉 Biar sama-sama enak, ini beberapa hal yang perlu kamu tau:
+            </div>
+
+            <div style={{ fontSize: '14px', fontWeight: 700, color: 'oklch(0.82 0.19 88)', marginBottom: '6px' }}>📋 Soal Data</div>
+            <ul style={{ fontSize: '13px', color: 'oklch(0.85 0.02 100)', lineHeight: 1.6, paddingLeft: '20px', marginTop: 0, marginBottom: '18px' }}>
+              <li>Game ini pakai data nama & satuan kerja yang sudah dipublikasikan resmi di kanal publik — bukan data baru yang kami kumpulkan sendiri.</li>
+              <li>Kami tidak menambahkan data pribadi lain (kontak, alamat, dll).</li>
+              <li>Data ini hanya untuk keperluan internal game, tidak dibagikan atau dijual ke pihak manapun.</li>
+            </ul>
+
+            <div style={{ fontSize: '14px', fontWeight: 700, color: 'oklch(0.82 0.19 88)', marginBottom: '6px' }}>🚫 Bukan Resmi</div>
+            <ul style={{ fontSize: '13px', color: 'oklch(0.85 0.02 100)', lineHeight: 1.6, paddingLeft: '20px', marginTop: 0, marginBottom: '18px' }}>
+              <li>Game ini murni inisiatif untuk seru-seruan, tidak berafiliasi dan tidak mewakili lembaga apapun.</li>
+              <li>Hasil tebakan di sini sama sekali tidak memengaruhi hasil resmi.</li>
+            </ul>
+
+            <div style={{ fontSize: '14px', fontWeight: 700, color: 'oklch(0.82 0.19 88)', marginBottom: '6px' }}>💰 Soal Coin & Poin</div>
+            <div style={{ fontSize: '13px', color: 'oklch(0.85 0.02 100)', lineHeight: 1.6, marginBottom: '18px' }}>
+              Semua coin/poin di sini virtual, cuma buat fun — tidak bisa ditukar, dibeli, atau dicairkan jadi uang/aset apapun dalam bentuk apapun.
+            </div>
+
+            <div
+              style={{
+                cursor: 'pointer',
+                textAlign: 'center',
+                fontFamily: "'Bebas Neue',sans-serif",
+                fontSize: '16px',
+                letterSpacing: '1px',
+                background: 'linear-gradient(180deg, oklch(0.82 0.15 85), oklch(0.68 0.16 80))',
+                color: 'oklch(0.16 0.04 30)',
+                padding: '12px',
+                borderRadius: '10px',
+                border: '2px solid oklch(0.55 0.12 85)',
+              }}
+              onClick={() => setTermsOpen(false)}
+            >
+              MENGERTI
             </div>
           </div>
         </div>
