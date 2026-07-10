@@ -107,13 +107,17 @@ create policy "offices are publicly readable"
 
 -- ============ CANDIDATES ============
 -- Insert rows yourself via Supabase Studio Table Editor / SQL Editor.
--- e.g. insert into candidates (name) values ('Ahmad Saputra');
+-- e.g. insert into candidates (name, kelas) values ('Ahmad Saputra', 'A');
 
 create table if not exists candidates (
   id uuid primary key default gen_random_uuid(),
   name text unique not null,
+  kelas text,
+  is_active boolean not null default true,
   created_at timestamptz not null default now()
 );
+alter table candidates add column if not exists kelas text;
+alter table candidates add column if not exists is_active boolean not null default true;
 
 alter table candidates enable row level security;
 

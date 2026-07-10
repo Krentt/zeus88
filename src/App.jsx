@@ -159,7 +159,7 @@ export default function App() {
     if (!error && data) setOfficeRows(data);
   };
   const loadCandidates = async () => {
-    const { data, error } = await supabase.from('candidates').select('id,name').order('name');
+    const { data, error } = await supabase.from('candidates').select('id,name').eq('is_active', true).order('name');
     if (!error && data) setCandidateRows(data);
   };
   const loadRecords = async () => {
