@@ -48,6 +48,21 @@ body {
   }
 }
 
+@keyframes popIn {
+  0% {
+    transform: scale(0.6) rotate(-3deg);
+    opacity: 0;
+  }
+  70% {
+    transform: scale(1.05) rotate(1deg);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1) rotate(0deg);
+    opacity: 1;
+  }
+}
+
 @keyframes ticker {
   from {
     transform: translateX(0%);

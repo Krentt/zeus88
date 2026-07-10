@@ -7,6 +7,8 @@ import gachaBell from './assets/gacha/bell.png';
 import gachaStar from './assets/gacha/star.png';
 import gachaGrape from './assets/gacha/grape.png';
 import gachaSeven from './assets/gacha/seven.png';
+import adPopupImg from './assets/ads/popup.jpg';
+import adBannerImg from './assets/ads/banner.jpg';
 
 const CONFETTI_COLORS = ['#ffd54a', '#e5484d', '#c026d3', '#ffffff'];
 const fireConfetti = () => {
@@ -179,6 +181,7 @@ export default function App() {
   const [authFullName, setAuthFullName] = useState('');
   const [authConsent, setAuthConsent] = useState(false);
   const [termsOpen, setTermsOpen] = useState(false);
+  const [showAdPopup, setShowAdPopup] = useState(false);
   const [authUsername, setAuthUsername] = useState('');
   const [authPassword, setAuthPassword] = useState('');
   const [authError, setAuthError] = useState(null);
@@ -235,6 +238,11 @@ export default function App() {
   }, []);
 
   const animatedJackpot = useCountUp(jackpot, 900);
+
+  useEffect(() => {
+    const t = setTimeout(() => setShowAdPopup(true), 700);
+    return () => clearTimeout(t);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -870,6 +878,22 @@ export default function App() {
       {/* BERANDA TAB */}
       {isBeranda && (
         <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '48px 28px 80px' }}>
+          {/* AD BANNER */}
+          <img
+            src={adBannerImg}
+            alt="Promo"
+            onClick={() => openAuthModal('register')}
+            style={{
+              width: '100%',
+              display: 'block',
+              borderRadius: '14px',
+              border: '2px solid oklch(0.82 0.19 88)',
+              boxShadow: '0 8px 30px rgba(0,0,0,0.4), 0 0 24px oklch(0.82 0.19 88 / 0.25)',
+              cursor: 'pointer',
+              marginBottom: '28px',
+            }}
+          />
+
           {/* HERO */}
           <div style={{ textAlign: 'center', padding: '20px 0 36px' }}>
             <div className="tp-hero-title" style={{ fontFamily: "'Luckiest Guy',cursive", lineHeight: 1.1, letterSpacing: '1px', color: 'oklch(0.96 0.01 90)', textShadow: '3px 3px 0 oklch(0.55 0.22 25 / 0.6)' }}>
@@ -1598,6 +1622,74 @@ export default function App() {
           </div>
         ))}
       </div>
+
+      {/* AD POPUP */}
+      {showAdPopup && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 120,
+            background: 'rgba(0,0,0,0.78)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '20px',
+          }}
+          onClick={() => setShowAdPopup(false)}
+        >
+          <div
+            style={{
+              position: 'relative',
+              width: '640px',
+              maxWidth: '100%',
+              animation: 'popIn 0.4s cubic-bezier(.2,1.3,.4,1)',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div
+              onClick={() => setShowAdPopup(false)}
+              style={{
+                position: 'absolute',
+                top: '-14px',
+                right: '-14px',
+                zIndex: 2,
+                cursor: 'pointer',
+                width: '32px',
+                height: '32px',
+                borderRadius: '50%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '18px',
+                fontWeight: 700,
+                background: 'oklch(0.82 0.19 88)',
+                color: 'oklch(0.16 0.04 30)',
+                border: '2px solid oklch(0.16 0.04 30)',
+                boxShadow: '0 4px 12px rgba(0,0,0,0.5)',
+              }}
+            >
+              ✕
+            </div>
+            <img
+              src={adPopupImg}
+              alt="Promo"
+              onClick={() => {
+                setShowAdPopup(false);
+                openAuthModal('register');
+              }}
+              style={{
+                width: '100%',
+                display: 'block',
+                borderRadius: '16px',
+                border: '3px solid oklch(0.82 0.19 88)',
+                boxShadow: '0 0 70px oklch(0.82 0.19 88 / 0.45), 0 24px 60px rgba(0,0,0,0.6)',
+                cursor: 'pointer',
+              }}
+            />
+          </div>
+        </div>
+      )}
 
       {/* AUTH MODAL */}
       {authModalOpen && (
