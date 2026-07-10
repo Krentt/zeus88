@@ -58,8 +58,8 @@ const isFreeSpinAvailable = (lastFreeSpinAt) => {
 };
 
 const SESSION_KEY = 'tp_session';
-const saveSession = (id, username, balance) => {
-  localStorage.setItem(SESSION_KEY, JSON.stringify({ id, username, balance }));
+const saveSession = (id, username, balance, lastFreeSpinAt) => {
+  localStorage.setItem(SESSION_KEY, JSON.stringify({ id, username, balance, lastFreeSpinAt }));
 };
 const loadSession = () => {
   try {
@@ -117,6 +117,7 @@ export default function App() {
       setUserId(session.id);
       setUsername(session.username);
       setBalance(session.balance || 0);
+      setLastFreeSpinAt(session.lastFreeSpinAt || null);
       setLoggedIn(true);
     }
   }, []);
@@ -217,7 +218,7 @@ export default function App() {
       setLastFreeSpinAt(row.last_free_spin_at);
       setLoggedIn(true);
       setAuthModalOpen(false);
-      saveSession(row.id, row.username, row.balance);
+      saveSession(row.id, row.username, row.balance, row.last_free_spin_at);
       fireConfetti();
       flash(authMode === 'register' ? 'Selamat datang, ' + row.username + '! Kamu dapat 1000 Coin.' : 'Selamat datang kembali, ' + row.username + '!');
     } catch (e) {
@@ -276,9 +277,11 @@ export default function App() {
       clearInterval(spinTicker);
       if (error) throw error;
       const row = data[0];
+      const newLastFreeSpinAt = row.was_free ? new Date().toISOString() : lastFreeSpinAt;
       setGachaReels(row.symbols);
       setBalance(row.new_balance);
-      if (row.was_free) setLastFreeSpinAt(new Date().toISOString());
+      setLastFreeSpinAt(newLastFreeSpinAt);
+      saveSession(userId, username, row.new_balance, newLastFreeSpinAt);
       setGachaResult({ reward: row.reward, wasFree: row.was_free });
       if (row.reward >= 1000) fireConfetti();
     } catch (e) {
@@ -344,7 +347,7 @@ export default function App() {
         newBalance = data[0].new_balance;
       }
       setBalance(newBalance);
-      saveSession(userId, username, newBalance);
+      saveSession(userId, username, newBalance, lastFreeSpinAt);
       setSelectedBids({});
       await loadRecords();
       flash('Taruhan dipasang! ' + entries.length + ' kandidat, total ' + fmtNum(totalStake) + ' Coin.', 4000);
