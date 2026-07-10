@@ -74,6 +74,7 @@ export default function App() {
   const [gachaReels, setGachaReels] = useState(['seven', 'seven', 'seven']);
   const [gachaResult, setGachaResult] = useState(null);
   const [gachaError, setGachaError] = useState(null);
+  const [gachaImagesReady, setGachaImagesReady] = useState(false);
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [authMode, setAuthMode] = useState('register');
   const [authUsername, setAuthUsername] = useState('');
@@ -98,6 +99,23 @@ export default function App() {
 
   useEffect(() => {
     fireConfetti();
+  }, []);
+
+  useEffect(() => {
+    let loaded = 0;
+    let cancelled = false;
+    const urls = Object.values(SLOT_SYMBOLS);
+    urls.forEach((src) => {
+      const img = new Image();
+      img.onload = img.onerror = () => {
+        loaded += 1;
+        if (!cancelled && loaded === urls.length) setGachaImagesReady(true);
+      };
+      img.src = src;
+    });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const tickerItems = useMemo(
@@ -207,7 +225,7 @@ export default function App() {
   };
 
   const spinGacha = async () => {
-    if (!loggedIn || gachaSpinning) return;
+    if (!loggedIn || gachaSpinning || !gachaImagesReady) return;
     const willBeFree = isFreeSpinAvailable(lastFreeSpinAt);
     if (!willBeFree && balance < 10) {
       setGachaError('Saldo kamu kurang dari 10 Coin.');
@@ -1368,8 +1386,8 @@ export default function App() {
 
             <div
               style={{
-                cursor: !loggedIn || gachaSpinning ? 'not-allowed' : 'pointer',
-                opacity: gachaSpinning ? 0.6 : 1,
+                cursor: !loggedIn || gachaSpinning || !gachaImagesReady ? 'not-allowed' : 'pointer',
+                opacity: gachaSpinning || !gachaImagesReady ? 0.6 : 1,
                 fontFamily: "'Bebas Neue',sans-serif",
                 fontSize: '18px',
                 letterSpacing: '1px',
@@ -1379,9 +1397,11 @@ export default function App() {
                 borderRadius: '10px',
                 border: '2px solid oklch(0.55 0.12 85)',
               }}
-              onClick={() => loggedIn && !gachaSpinning && spinGacha()}
+              onClick={() => loggedIn && !gachaSpinning && gachaImagesReady && spinGacha()}
             >
-              {gachaSpinning
+              {!gachaImagesReady
+                ? 'MEMUAT...'
+                : gachaSpinning
                 ? 'SPINNING...'
                 : !loggedIn
                 ? 'MASUK DULU'
