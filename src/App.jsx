@@ -523,12 +523,12 @@ export default function App() {
     { label: 'Total Taruhan', value: fmtNum(records.length) },
     { label: 'Coin Beredar', value: fmtNum(totalCoins) },
     { label: 'Pemain Aktif', value: fmtNum(bettorCount) },
-    { label: 'Satker', value: '40' },
+    { label: 'Satker', value: '90' },
   ];
 
   const stepsView = [
     { num: 1, title: 'Register', desc: 'Daftar gratis dan langsung dapat 1000 coin untuk modal taruhan.' },
-    { num: 2, title: 'Pilih Satker', desc: 'Pilih 1 dari 40 satker sebagai tujuan tebakan.' },
+    { num: 2, title: 'Pilih Satker', desc: 'Pilih 1 dari 90 satker sebagai tujuan tebakan.' },
     { num: 3, title: 'Pilih Nama & Bid', desc: 'Pilih nama-nama kandidat lalu pasang jumlah coin taruhanmu.' },
   ];
 
