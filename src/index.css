@@ -86,6 +86,38 @@ body {
   grid-template-columns: 2fr 1.6fr 1fr 1.2fr 1fr;
 }
 
+.tp-navbar {
+  gap: 16px;
+  padding: 14px 28px;
+}
+.tp-logo-suit {
+  font-size: 22px;
+}
+.tp-logo-text {
+  font-size: 26px;
+  letter-spacing: 2px;
+  margin: 0 10px;
+}
+.tp-balance-chip {
+  gap: 8px;
+  padding: 6px 16px 6px 6px;
+}
+.tp-balance-avatar {
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+}
+.tp-balance-text {
+  font-size: 15px;
+}
+.tp-balance-logout {
+  font-size: 12px;
+}
+.tp-auth-btn {
+  font-size: 16px;
+  padding: 9px 20px;
+}
+
 .tp-nav-tabs {
   display: flex;
 }
@@ -151,6 +183,37 @@ body {
 
   .tp-nav-tabs {
     display: none;
+  }
+
+  .tp-navbar {
+    gap: 6px;
+    padding: 8px 12px;
+  }
+  .tp-logo-suit {
+    font-size: 14px;
+  }
+  .tp-logo-text {
+    font-size: 15px;
+    letter-spacing: 0.5px;
+    margin: 0 4px;
+  }
+  .tp-balance-chip {
+    gap: 4px;
+    padding: 3px 10px 3px 3px;
+  }
+  .tp-balance-avatar {
+    width: 18px;
+    height: 18px;
+  }
+  .tp-balance-text {
+    font-size: 11px;
+  }
+  .tp-balance-logout {
+    font-size: 10px;
+  }
+  .tp-auth-btn {
+    font-size: 11px;
+    padding: 6px 10px;
   }
   .tp-bottom-tabs {
     display: flex;

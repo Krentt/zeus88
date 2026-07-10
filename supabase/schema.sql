@@ -11,29 +11,54 @@ create table if not exists users (
   created_at timestamptz not null default now()
 );
 alter table users add column if not exists last_free_spin_at timestamptz;
+-- users.candidate_id is added further below, after the candidates table exists
+-- (see "one account per whitelisted person" in the CANDIDATES section).
 
 alter table users enable row level security;
 -- no policies: table only reachable through the security definer functions below
 
 drop function if exists register_user(text, text);
+drop function if exists register_user(text, text, text);
 drop function if exists login_user(text, text);
 
-create or replace function register_user(p_username text, p_password text)
+-- p_full_name is checked against the candidates whitelist (case-insensitive,
+-- trimmed) purely to confirm the registrant is a known internal person — it is
+-- never stored as or used as the login username.
+create or replace function register_user(p_full_name text, p_username text, p_password text)
 returns table(id uuid, username text, balance integer, last_free_spin_at timestamptz)
 language plpgsql
 security definer
 set search_path = public, extensions
 as $$
+declare
+  v_candidate_id uuid;
 begin
   if length(p_username) < 3 or length(p_password) < 6 then
     raise exception 'invalid_input';
   end if;
+  if length(trim(p_full_name)) < 3 then
+    raise exception 'invalid_name';
+  end if;
   if exists (select 1 from users u where u.username = p_username) then
     raise exception 'username_taken';
   end if;
+
+  select c.id into v_candidate_id
+  from candidates c
+  where lower(trim(c.name)) = lower(trim(p_full_name))
+  limit 1;
+
+  if v_candidate_id is null then
+    raise exception 'name_not_found';
+  end if;
+
+  if exists (select 1 from users u where u.candidate_id = v_candidate_id) then
+    raise exception 'name_already_registered';
+  end if;
+
   return query
-  insert into users (username, password_hash, balance)
-  values (p_username, crypt(p_password, gen_salt('bf')), 1000)
+  insert into users (username, password_hash, balance, candidate_id)
+  values (p_username, crypt(p_password, gen_salt('bf')), 1000, v_candidate_id)
   returning users.id, users.username, users.balance, users.last_free_spin_at;
 end;
 $$;
@@ -53,9 +78,9 @@ begin
 end;
 $$;
 
-revoke all on function register_user(text, text) from public;
+revoke all on function register_user(text, text, text) from public;
 revoke all on function login_user(text, text) from public;
-grant execute on function register_user(text, text) to anon, authenticated;
+grant execute on function register_user(text, text, text) to anon, authenticated;
 grant execute on function login_user(text, text) to anon, authenticated;
 
 -- ============ OFFICES (kantor OJK) ============
@@ -82,13 +107,17 @@ create policy "offices are publicly readable"
 
 -- ============ CANDIDATES ============
 -- Insert rows yourself via Supabase Studio Table Editor / SQL Editor.
--- e.g. insert into candidates (name) values ('Ahmad Saputra');
+-- e.g. insert into candidates (name, kelas) values ('Ahmad Saputra', 'A');
 
 create table if not exists candidates (
   id uuid primary key default gen_random_uuid(),
   name text unique not null,
+  kelas text,
+  is_active boolean not null default true,
   created_at timestamptz not null default now()
 );
+alter table candidates add column if not exists kelas text;
+alter table candidates add column if not exists is_active boolean not null default true;
 
 alter table candidates enable row level security;
 
@@ -98,6 +127,11 @@ create policy "candidates are publicly readable"
   using (true);
 -- no insert/update/delete policy for anon/authenticated — add rows from the
 -- Supabase dashboard, which bypasses RLS.
+
+-- one account per whitelisted person: a candidate_id can back at most one user
+alter table users add column if not exists candidate_id uuid references candidates(id);
+drop index if exists users_candidate_id_unique;
+create unique index users_candidate_id_unique on users(candidate_id) where candidate_id is not null;
 
 -- ============ BIDS (taruhan) ============
 
@@ -273,3 +307,59 @@ $$;
 
 revoke all on function spin_slot(uuid) from public;
 grant execute on function spin_slot(uuid) to anon, authenticated;
+
+-- ============ LIVE CHAT ============
+
+create table if not exists chat_messages (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references users(id),
+  username text not null,
+  message text not null check (char_length(message) between 1 and 500),
+  created_at timestamptz not null default now()
+);
+
+alter table chat_messages enable row level security;
+
+drop policy if exists "chat messages are publicly readable" on chat_messages;
+create policy "chat messages are publicly readable"
+  on chat_messages for select
+  using (true);
+-- no direct insert policy — writes only go through post_chat_message() below,
+-- which stamps the username server-side so it can't be spoofed.
+
+create or replace function post_chat_message(p_user_id uuid, p_message text)
+returns table(id uuid, username text, message text, created_at timestamptz)
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_username text;
+  v_message text;
+begin
+  v_message := trim(p_message);
+  if char_length(v_message) < 1 or char_length(v_message) > 500 then
+    raise exception 'invalid_message';
+  end if;
+
+  select u.username into v_username from users u where u.id = p_user_id;
+  if v_username is null then
+    raise exception 'user_not_found';
+  end if;
+
+  return query
+  insert into chat_messages (user_id, username, message)
+  values (p_user_id, v_username, v_message)
+  returning chat_messages.id, chat_messages.username, chat_messages.message, chat_messages.created_at;
+end;
+$$;
+
+revoke all on function post_chat_message(uuid, text) from public;
+grant execute on function post_chat_message(uuid, text) to anon, authenticated;
+
+-- enable Realtime (Postgres Changes) broadcasts for this table
+do $$
+begin
+  alter publication supabase_realtime add table chat_messages;
+exception when duplicate_object then null;
+end $$;

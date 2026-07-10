@@ -120,6 +120,9 @@ export default function App() {
   const [gachaImagesReady, setGachaImagesReady] = useState(false);
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [authMode, setAuthMode] = useState('register');
+  const [authFullName, setAuthFullName] = useState('');
+  const [authConsent, setAuthConsent] = useState(false);
+  const [termsOpen, setTermsOpen] = useState(false);
   const [authUsername, setAuthUsername] = useState('');
   const [authPassword, setAuthPassword] = useState('');
   const [authError, setAuthError] = useState(null);
@@ -138,6 +141,11 @@ export default function App() {
     const stored = Number(localStorage.getItem(JACKPOT_KEY));
     return stored > 0 ? stored : JACKPOT_SEED;
   });
+  const [chatMessages, setChatMessages] = useState([]);
+  const [chatInput, setChatInput] = useState('');
+  const [chatSending, setChatSending] = useState(false);
+  const [chatError, setChatError] = useState(null);
+  const chatScrollRef = useRef(null);
 
   const flash = (msg, ms = 3500) => {
     setFlashMessage(msg);
@@ -203,7 +211,7 @@ export default function App() {
     if (!error && data) setOfficeRows(data);
   };
   const loadCandidates = async () => {
-    const { data, error } = await supabase.from('candidates').select('id,name').order('name');
+    const { data, error } = await supabase.from('candidates').select('id,name').eq('is_active', true).order('name');
     if (!error && data) setCandidateRows(data);
   };
   const loadRecords = async () => {
@@ -221,8 +229,67 @@ export default function App() {
     loadRecords();
   }, []);
 
+  const appendChatMessage = (msg) => {
+    setChatMessages((prev) => (prev.some((m) => m.id === msg.id) ? prev : [...prev, msg]));
+  };
+
+  const loadChatMessages = async () => {
+    const { data, error } = await supabase
+      .from('chat_messages')
+      .select('id,user_id,username,message,created_at')
+      .order('created_at', { ascending: true })
+      .limit(200);
+    if (!error && data) setChatMessages(data);
+  };
+
+  // Only fetches/subscribes once logged in — chat is members-only. Runs again
+  // whenever loggedIn flips true (fresh login, or session restored on reload),
+  // fetching history then opening a Realtime (WebSocket) subscription that
+  // stays live for as long as the tab is open and the user is logged in.
+  useEffect(() => {
+    if (!loggedIn) {
+      setChatMessages([]);
+      return;
+    }
+    loadChatMessages();
+    const channel = supabase
+      .channel('chat_messages_changes')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_messages' }, (payload) => {
+        appendChatMessage(payload.new);
+      })
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [loggedIn]);
+
+  useEffect(() => {
+    if (chatScrollRef.current) {
+      chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight;
+    }
+  }, [chatMessages]);
+
+  const sendChatMessage = async () => {
+    const trimmed = chatInput.trim();
+    if (!loggedIn || !trimmed || chatSending) return;
+    setChatSending(true);
+    setChatError(null);
+    try {
+      const { data, error } = await supabase.rpc('post_chat_message', { p_user_id: userId, p_message: trimmed });
+      if (error) throw error;
+      appendChatMessage(data[0]);
+      setChatInput('');
+    } catch (e) {
+      setChatError('Gagal kirim pesan, coba lagi.');
+    } finally {
+      setChatSending(false);
+    }
+  };
+
   const openAuthModal = (mode) => {
     setAuthMode(mode);
+    setAuthFullName('');
+    setAuthConsent(false);
     setAuthUsername('');
     setAuthPassword('');
     setAuthError(null);
@@ -235,6 +302,14 @@ export default function App() {
 
   const submitAuth = async () => {
     setAuthError(null);
+    if (authMode === 'register' && authFullName.trim().length < 3) {
+      setAuthError('Nama lengkap minimal 3 karakter.');
+      return;
+    }
+    if (authMode === 'register' && !authConsent) {
+      setAuthError('Centang dulu persetujuan penggunaan nama kamu.');
+      return;
+    }
     if (authUsername.trim().length < 3) {
       setAuthError('Username minimal 3 karakter.');
       return;
@@ -245,13 +320,22 @@ export default function App() {
     }
     setAuthLoading(true);
     try {
-      const rpcName = authMode === 'register' ? 'register_user' : 'login_user';
-      const { data, error } = await supabase.rpc(rpcName, {
-        p_username: authUsername.trim(),
-        p_password: authPassword,
-      });
+      const { data, error } =
+        authMode === 'register'
+          ? await supabase.rpc('register_user', {
+              p_full_name: authFullName.trim(),
+              p_username: authUsername.trim(),
+              p_password: authPassword,
+            })
+          : await supabase.rpc('login_user', {
+              p_username: authUsername.trim(),
+              p_password: authPassword,
+            });
       if (error) {
         if (error.message.includes('username_taken')) throw new Error('Username sudah dipakai.');
+        if (error.message.includes('name_not_found')) throw new Error('Kamu bukan peserta yang terdaftar. Pastikan kamu memakai nama lengkap yang sesuai!');
+        if (error.message.includes('name_already_registered')) throw new Error('Nama ini sudah pernah dipakai untuk daftar. Kalau ini kamu, coba menu Masuk.');
+        if (error.message.includes('invalid_name')) throw new Error('Nama lengkap minimal 3 karakter.');
         if (error.message.includes('invalid_input')) throw new Error('Username minimal 3 karakter, password minimal 6 karakter.');
         if (error.message.includes('belum dikonfigurasi')) throw error;
         throw new Error(authMode === 'register' ? 'Gagal daftar. Coba lagi.' : 'Gagal masuk. Coba lagi.');
@@ -409,11 +493,13 @@ export default function App() {
   const isBeranda = activeTab === 'beranda';
   const isBid = activeTab === 'bid';
   const isList = activeTab === 'list';
+  const isChat = activeTab === 'chat';
 
   const tabDef = [
     { key: 'beranda', label: 'Beranda' },
     { key: 'bid', label: 'Pasang Taruhan' },
     { key: 'list', label: 'Daftar Taruhan' },
+    { key: 'chat', label: 'Live Chat' },
   ];
 
   const { candAgg, offAgg, totalCoins, bettorCount } = useMemo(() => {
@@ -551,6 +637,7 @@ export default function App() {
 
       {/* NAV */}
       <div
+        className="tp-navbar"
         style={{
           position: 'sticky',
           top: tickerItems.length > 0 ? '34px' : 0,
@@ -558,20 +645,18 @@ export default function App() {
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          gap: '16px',
-          padding: '14px 28px',
           background: 'oklch(0.13 0.035 335)',
           borderBottom: '3px solid oklch(0.82 0.19 88)',
           boxShadow: '0 4px 20px rgba(0,0,0,0.4)',
           flexWrap: 'wrap',
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: '22px', color: 'oklch(0.82 0.19 88)', letterSpacing: '1px' }}>♦</div>
-          <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: '26px', letterSpacing: '2px', color: 'oklch(0.82 0.19 88)', animation: 'glowPulse 3s ease-in-out infinite' }}>
+        <div className="tp-logo" style={{ display: 'flex', alignItems: 'center' }}>
+          <div className="tp-logo-suit" style={{ fontFamily: "'Bebas Neue',sans-serif", color: 'oklch(0.82 0.19 88)', letterSpacing: '1px' }}>♦</div>
+          <div className="tp-logo-text" style={{ fontFamily: "'Bebas Neue',sans-serif", color: 'oklch(0.82 0.19 88)', animation: 'glowPulse 3s ease-in-out infinite' }}>
             TEBAK PENEMPATAN
           </div>
-          <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: '22px', color: 'oklch(0.82 0.19 88)', letterSpacing: '1px' }}>♣</div>
+          <div className="tp-logo-suit" style={{ fontFamily: "'Bebas Neue',sans-serif", color: 'oklch(0.82 0.19 88)', letterSpacing: '1px' }}>♣</div>
         </div>
 
         <div className="tp-nav-tabs" style={{ gap: '8px', flexWrap: 'wrap' }}>
@@ -598,29 +683,28 @@ export default function App() {
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
           {loggedIn ? (
             <div
+              className="tp-balance-chip"
               style={{
                 display: 'flex',
                 alignItems: 'center',
-                gap: '8px',
                 background: 'oklch(0.20 0.05 335)',
                 border: '2px solid oklch(0.82 0.19 88)',
                 borderRadius: '999px',
-                padding: '6px 16px 6px 6px',
               }}
             >
               <div
+                className="tp-balance-avatar"
                 style={{
-                  width: '28px',
-                  height: '28px',
                   borderRadius: '50%',
                   background:
                     'conic-gradient(oklch(0.55 0.19 25) 0deg 90deg, oklch(0.96 0.01 90) 90deg 180deg, oklch(0.55 0.19 25) 180deg 270deg, oklch(0.96 0.01 90) 270deg 360deg)',
                   border: '2px dashed oklch(0.82 0.19 88)',
                 }}
               />
-              <div style={{ fontWeight: 700, fontSize: '15px', color: 'oklch(0.82 0.19 88)' }}>{username} • {fmtNum(balance)} Coin</div>
+              <div className="tp-balance-text" style={{ fontWeight: 700, color: 'oklch(0.82 0.19 88)' }}>{username} • {fmtNum(balance)} Coin</div>
               <div
-                style={{ cursor: 'pointer', fontSize: '12px', color: 'oklch(0.7 0.02 100)', textDecoration: 'underline' }}
+                className="tp-balance-logout"
+                style={{ cursor: 'pointer', color: 'oklch(0.7 0.02 100)', textDecoration: 'underline' }}
                 onClick={logout}
               >
                 Keluar
@@ -629,13 +713,12 @@ export default function App() {
           ) : (
             <div style={{ display: 'flex', gap: '8px' }}>
               <div
+                className="tp-auth-btn"
                 style={{
                   cursor: 'pointer',
                   fontFamily: "'Bebas Neue',sans-serif",
                   letterSpacing: '1px',
-                  fontSize: '16px',
                   color: 'oklch(0.9 0.01 90)',
-                  padding: '9px 16px',
                   borderRadius: '8px',
                   border: '2px solid oklch(0.5 0.05 335)',
                 }}
@@ -644,14 +727,13 @@ export default function App() {
                 MASUK
               </div>
               <div
+                className="tp-auth-btn"
                 style={{
                   cursor: 'pointer',
                   fontFamily: "'Bebas Neue',sans-serif",
                   letterSpacing: '1px',
-                  fontSize: '16px',
                   background: 'linear-gradient(180deg, oklch(0.82 0.15 85), oklch(0.68 0.16 80))',
                   color: 'oklch(0.16 0.04 30)',
-                  padding: '9px 20px',
                   borderRadius: '8px',
                   border: '2px solid oklch(0.55 0.12 85)',
                   boxShadow: '0 3px 0 oklch(0.5 0.13 80)',
@@ -1259,6 +1341,109 @@ export default function App() {
         </div>
       )}
 
+      {/* LIVE CHAT TAB */}
+      {isChat && (
+        <div style={{ maxWidth: '800px', margin: '0 auto', padding: '40px 28px 80px' }}>
+          <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: '28px', color: 'oklch(0.82 0.19 88)', letterSpacing: '1px', marginBottom: '6px' }}>
+            LIVE CHAT
+          </div>
+          <div style={{ color: 'oklch(0.75 0.02 100)', fontSize: '14px', marginBottom: '20px' }}>
+            Ngobrol bareng peserta lain, real-time.
+          </div>
+
+          {!loggedIn ? (
+            <div style={{ textAlign: 'center', padding: '60px 20px', background: 'oklch(0.19 0.05 335)', border: '2px dashed oklch(0.82 0.19 88)', borderRadius: '16px' }}>
+              <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: '28px', color: 'oklch(0.82 0.19 88)', marginBottom: '10px' }}>MASUK DULU YUK!</div>
+              <div style={{ color: 'oklch(0.78 0.02 100)', marginBottom: '22px' }}>Live chat cuma buat peserta yang udah daftar & masuk.</div>
+              <div
+                style={{
+                  display: 'inline-block',
+                  cursor: 'pointer',
+                  fontFamily: "'Bebas Neue',sans-serif",
+                  fontSize: '18px',
+                  letterSpacing: '1px',
+                  background: 'linear-gradient(180deg, oklch(0.82 0.15 85), oklch(0.68 0.16 80))',
+                  color: 'oklch(0.16 0.04 30)',
+                  padding: '12px 28px',
+                  borderRadius: '8px',
+                  border: '2px solid oklch(0.55 0.12 85)',
+                }}
+                onClick={() => openAuthModal('register')}
+              >
+                DAFTAR • +1000 COIN
+              </div>
+            </div>
+          ) : (
+            <>
+              <div
+                ref={chatScrollRef}
+                style={{
+                  height: '440px',
+                  overflowY: 'auto',
+                  border: '2px solid oklch(0.30 0.06 335)',
+                  borderRadius: '14px',
+                  padding: '16px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '10px',
+                  background: 'oklch(0.15 0.035 335)',
+                }}
+              >
+                {chatMessages.length === 0 && (
+                  <div style={{ color: 'oklch(0.65 0.02 100)', fontSize: '13px', textAlign: 'center', marginTop: '20px' }}>
+                    Belum ada pesan. Mulai ngobrol yuk!
+                  </div>
+                )}
+                {chatMessages.map((m) => (
+                  <div key={m.id} style={{ display: 'flex', flexDirection: 'column' }}>
+                    <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
+                      <span style={{ fontWeight: 700, fontSize: '13px', color: 'oklch(0.82 0.19 88)' }}>{m.username}</span>
+                      <span style={{ fontSize: '11px', color: 'oklch(0.6 0.02 100)' }}>
+                        {new Date(m.created_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}
+                      </span>
+                    </div>
+                    <div style={{ fontSize: '14px', color: 'oklch(0.94 0.01 90)', wordBreak: 'break-word' }}>{m.message}</div>
+                  </div>
+                ))}
+              </div>
+
+              {chatError && <div style={{ color: 'oklch(0.7 0.19 25)', fontSize: '13px', marginTop: '10px' }}>{chatError}</div>}
+
+              <div style={{ display: 'flex', gap: '10px', marginTop: '14px' }}>
+                <input
+                  type="text"
+                  placeholder="Tulis pesan..."
+                  value={chatInput}
+                  onChange={(e) => setChatInput(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && sendChatMessage()}
+                  maxLength={500}
+                  style={{ ...inputStyle, flex: 1 }}
+                />
+                <div
+                  onClick={() => sendChatMessage()}
+                  style={{
+                    cursor: chatSending || !chatInput.trim() ? 'not-allowed' : 'pointer',
+                    opacity: chatSending || !chatInput.trim() ? 0.5 : 1,
+                    fontFamily: "'Bebas Neue',sans-serif",
+                    fontSize: '16px',
+                    letterSpacing: '1px',
+                    background: 'linear-gradient(180deg, oklch(0.82 0.15 85), oklch(0.68 0.16 80))',
+                    color: 'oklch(0.16 0.04 30)',
+                    padding: '0 22px',
+                    borderRadius: '10px',
+                    border: '2px solid oklch(0.55 0.12 85)',
+                    display: 'flex',
+                    alignItems: 'center',
+                  }}
+                >
+                  KIRIM
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+      )}
+
       {/* FOOTER */}
       <div style={{ textAlign: 'center', padding: '24px', color: 'oklch(0.6 0.02 100)', fontSize: '12px', borderTop: '1px solid oklch(0.25 0.05 335)' }}>
         ♠ Permainan tebak-tebakan untuk hiburan internal. Coin tidak memiliki nilai tukar uang. ♥
@@ -1352,13 +1537,50 @@ export default function App() {
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              {authMode === 'register' && (
+                <div>
+                  <input
+                    type="text"
+                    placeholder="Nama Lengkap (sesuai data resmi)"
+                    value={authFullName}
+                    onChange={(e) => setAuthFullName(e.target.value)}
+                    style={inputStyle}
+                    autoFocus
+                  />
+                  <div style={{ fontSize: '11px', color: 'oklch(0.7 0.02 100)', marginTop: '6px', lineHeight: 1.4 }}>
+                    Cuma buat verifikasi kamu peserta internal — bukan username kamu. Username buat login ada di bawah.
+                  </div>
+                  <label style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', marginTop: '12px', cursor: 'pointer' }}>
+                    <input
+                      type="checkbox"
+                      checked={authConsent}
+                      onChange={(e) => setAuthConsent(e.target.checked)}
+                      style={{ marginTop: '3px', width: '16px', height: '16px', accentColor: 'oklch(0.82 0.19 88)', cursor: 'pointer', flexShrink: 0 }}
+                    />
+                    <span style={{ fontSize: '12px', color: 'oklch(0.85 0.02 100)', lineHeight: 1.4 }}>
+                      Saya setuju nama saya digunakan untuk keperluan verifikasi identitas peserta & game internal ini. Baca selengkapnya di{' '}
+                      <span
+                        style={{ textDecoration: 'underline', color: 'oklch(0.82 0.19 88)', cursor: 'pointer' }}
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          setTermsOpen(true);
+                        }}
+                      >
+                        Ketentuan &amp; Privasi
+                      </span>
+                      .
+                    </span>
+                  </label>
+                </div>
+              )}
               <input
                 type="text"
                 placeholder="Username"
                 value={authUsername}
                 onChange={(e) => setAuthUsername(e.target.value)}
                 style={inputStyle}
-                autoFocus
+                autoFocus={authMode === 'login'}
               />
               <input
                 type="password"
@@ -1375,8 +1597,8 @@ export default function App() {
 
               <div
                 style={{
-                  cursor: authLoading ? 'wait' : 'pointer',
-                  opacity: authLoading ? 0.6 : 1,
+                  cursor: authLoading || (authMode === 'register' && !authConsent) ? 'not-allowed' : 'pointer',
+                  opacity: authLoading || (authMode === 'register' && !authConsent) ? 0.5 : 1,
                   textAlign: 'center',
                   fontFamily: "'Bebas Neue',sans-serif",
                   fontSize: '18px',
@@ -1388,10 +1610,84 @@ export default function App() {
                   border: '2px solid oklch(0.55 0.12 85)',
                   marginTop: '4px',
                 }}
-                onClick={() => !authLoading && submitAuth()}
+                onClick={() => !authLoading && (authMode === 'login' || authConsent) && submitAuth()}
               >
                 {authLoading ? 'MEMPROSES...' : authMode === 'register' ? 'DAFTAR • +1000 COIN' : 'MASUK'}
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* TERMS & PRIVACY MODAL */}
+      {termsOpen && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 110,
+            background: 'rgba(0,0,0,0.7)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '20px',
+          }}
+          onClick={() => setTermsOpen(false)}
+        >
+          <div
+            style={{
+              width: '540px',
+              maxWidth: '100%',
+              maxHeight: '80vh',
+              overflowY: 'auto',
+              background: 'oklch(0.18 0.045 335)',
+              border: '2px solid oklch(0.82 0.19 88)',
+              borderRadius: '16px',
+              padding: '28px',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: '22px', letterSpacing: '1px', color: 'oklch(0.82 0.19 88)', marginBottom: '4px' }}>
+              🎲 Sebelum Mulai — Baca Dulu Ya!
+            </div>
+            <div style={{ fontSize: '14px', color: 'oklch(0.9 0.01 90)', marginBottom: '18px' }}>
+              Selamat datang di Tebak Penempatan! 🎉 Biar sama-sama enak, ini beberapa hal yang perlu kamu tau:
+            </div>
+
+            <div style={{ fontSize: '14px', fontWeight: 700, color: 'oklch(0.82 0.19 88)', marginBottom: '6px' }}>📋 Soal Data</div>
+            <ul style={{ fontSize: '13px', color: 'oklch(0.85 0.02 100)', lineHeight: 1.6, paddingLeft: '20px', marginTop: 0, marginBottom: '18px' }}>
+              <li>Game ini pakai data nama & satuan kerja yang sudah dipublikasikan resmi di kanal publik — bukan data baru yang kami kumpulkan sendiri.</li>
+              <li>Kami tidak menambahkan data pribadi lain (kontak, alamat, dll).</li>
+              <li>Data ini hanya untuk keperluan internal game, tidak dibagikan atau dijual ke pihak manapun.</li>
+            </ul>
+
+            <div style={{ fontSize: '14px', fontWeight: 700, color: 'oklch(0.82 0.19 88)', marginBottom: '6px' }}>🚫 Bukan Resmi</div>
+            <ul style={{ fontSize: '13px', color: 'oklch(0.85 0.02 100)', lineHeight: 1.6, paddingLeft: '20px', marginTop: 0, marginBottom: '18px' }}>
+              <li>Game ini murni inisiatif untuk seru-seruan, tidak berafiliasi dan tidak mewakili lembaga apapun.</li>
+              <li>Hasil tebakan di sini sama sekali tidak memengaruhi hasil resmi.</li>
+            </ul>
+
+            <div style={{ fontSize: '14px', fontWeight: 700, color: 'oklch(0.82 0.19 88)', marginBottom: '6px' }}>💰 Soal Coin & Poin</div>
+            <div style={{ fontSize: '13px', color: 'oklch(0.85 0.02 100)', lineHeight: 1.6, marginBottom: '18px' }}>
+              Semua coin/poin di sini virtual, cuma buat fun — tidak bisa ditukar, dibeli, atau dicairkan jadi uang/aset apapun dalam bentuk apapun.
+            </div>
+
+            <div
+              style={{
+                cursor: 'pointer',
+                textAlign: 'center',
+                fontFamily: "'Bebas Neue',sans-serif",
+                fontSize: '16px',
+                letterSpacing: '1px',
+                background: 'linear-gradient(180deg, oklch(0.82 0.15 85), oklch(0.68 0.16 80))',
+                color: 'oklch(0.16 0.04 30)',
+                padding: '12px',
+                borderRadius: '10px',
+                border: '2px solid oklch(0.55 0.12 85)',
+              }}
+              onClick={() => setTermsOpen(false)}
+            >
+              MENGERTI
             </div>
           </div>
         </div>
