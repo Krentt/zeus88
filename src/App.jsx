@@ -206,6 +206,7 @@ export default function App() {
   const [chatMessages, setChatMessages] = useState([]);
   const [chatInput, setChatInput] = useState('');
   const [chatSending, setChatSending] = useState(false);
+  const [chatAsAnnouncement, setChatAsAnnouncement] = useState(false);
   const [chatError, setChatError] = useState(null);
   const chatScrollRef = useRef(null);
 
@@ -338,7 +339,7 @@ export default function App() {
   const loadChatMessages = async () => {
     const { data, error } = await supabase
       .from('chat_messages')
-      .select('id,user_id,username,message,created_at')
+      .select('id,user_id,username,message,is_announcement,created_at')
       .order('created_at', { ascending: true })
       .limit(200);
     if (!error && data) setChatMessages(data);
@@ -374,15 +375,25 @@ export default function App() {
   const sendChatMessage = async () => {
     const trimmed = chatInput.trim();
     if (!loggedIn || !trimmed || chatSending) return;
+    if (chatAsAnnouncement && balance < 10) {
+      setChatError('Saldo kamu kurang dari 10 Coin buat pengumuman.');
+      return;
+    }
     setChatSending(true);
     setChatError(null);
     try {
-      const { data, error } = await supabase.rpc('post_chat_message', { p_user_id: userId, p_message: trimmed });
+      const { data, error } = await supabase.rpc('post_chat_message', {
+        p_user_id: userId,
+        p_message: trimmed,
+        p_is_announcement: chatAsAnnouncement,
+      });
       if (error) throw error;
       appendChatMessage(data[0]);
+      setBalance(data[0].new_balance);
       setChatInput('');
+      setChatAsAnnouncement(false);
     } catch (e) {
-      setChatError('Gagal kirim pesan, coba lagi.');
+      setChatError(e.message.includes('insufficient_balance') ? 'Saldo kamu kurang dari 10 Coin buat pengumuman.' : 'Gagal kirim pesan, coba lagi.');
     } finally {
       setChatSending(false);
     }
@@ -1518,22 +1529,57 @@ export default function App() {
                     Belum ada pesan. Mulai ngobrol yuk!
                   </div>
                 )}
-                {chatMessages.map((m) => (
-                  <div key={m.id} style={{ display: 'flex', flexDirection: 'column' }}>
-                    <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
-                      <span style={{ fontWeight: 700, fontSize: '13px', color: 'oklch(0.82 0.19 88)' }}>{m.username}</span>
-                      <span style={{ fontSize: '11px', color: 'oklch(0.6 0.02 100)' }}>
-                        {new Date(m.created_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}
-                      </span>
+                {chatMessages.map((m) =>
+                  m.username === 'System' ? (
+                    <div key={m.id} style={{ textAlign: 'center', fontSize: '12px', fontStyle: 'italic', color: 'oklch(0.55 0.02 100)' }}>
+                      {m.message}
                     </div>
-                    <div style={{ fontSize: '14px', color: 'oklch(0.94 0.01 90)', wordBreak: 'break-word' }}>{m.message}</div>
-                  </div>
-                ))}
+                  ) : m.is_announcement ? (
+                    <div
+                      key={m.id}
+                      style={{
+                        background: 'linear-gradient(90deg, oklch(0.30 0.10 335), oklch(0.24 0.12 300))',
+                        border: '2px solid oklch(0.82 0.19 88)',
+                        borderRadius: '10px',
+                        padding: '10px 14px',
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
+                        <span style={{ fontSize: '13px' }}>📢</span>
+                        <span style={{ fontWeight: 700, fontSize: '13px', color: 'oklch(0.82 0.19 88)' }}>{m.username}</span>
+                        <span style={{ fontSize: '11px', color: 'oklch(0.75 0.02 100)' }}>
+                          {new Date(m.created_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                      </div>
+                      <div style={{ fontSize: '14px', fontWeight: 600, color: 'oklch(0.97 0.01 90)', wordBreak: 'break-word' }}>{m.message}</div>
+                    </div>
+                  ) : (
+                    <div key={m.id} style={{ display: 'flex', flexDirection: 'column' }}>
+                      <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
+                        <span style={{ fontWeight: 700, fontSize: '13px', color: 'oklch(0.82 0.19 88)' }}>{m.username}</span>
+                        <span style={{ fontSize: '11px', color: 'oklch(0.6 0.02 100)' }}>
+                          {new Date(m.created_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                      </div>
+                      <div style={{ fontSize: '14px', color: 'oklch(0.94 0.01 90)', wordBreak: 'break-word' }}>{m.message}</div>
+                    </div>
+                  )
+                )}
               </div>
 
               {chatError && <div style={{ color: 'oklch(0.7 0.19 25)', fontSize: '13px', marginTop: '10px' }}>{chatError}</div>}
 
-              <div style={{ display: 'flex', gap: '10px', marginTop: '14px' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '12px', cursor: 'pointer' }}>
+                <input
+                  type="checkbox"
+                  checked={chatAsAnnouncement}
+                  onChange={(e) => setChatAsAnnouncement(e.target.checked)}
+                  style={{ width: '16px', height: '16px', accentColor: 'oklch(0.82 0.19 88)', cursor: 'pointer' }}
+                />
+                <span style={{ fontSize: '13px', color: 'oklch(0.85 0.02 100)' }}>📢 Kirim sebagai Pengumuman (10 Coin) — tampil menonjol buat semua orang</span>
+              </label>
+
+              <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
                 <input
                   type="text"
                   placeholder="Tulis pesan..."
@@ -1560,7 +1606,7 @@ export default function App() {
                     alignItems: 'center',
                   }}
                 >
-                  KIRIM
+                  {chatAsAnnouncement ? 'KIRIM • 10 COIN' : 'KIRIM'}
                 </div>
               </div>
             </>
