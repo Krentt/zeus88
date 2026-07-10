@@ -141,6 +141,9 @@ export default function App() {
     const stored = Number(localStorage.getItem(JACKPOT_KEY));
     return stored > 0 ? stored : JACKPOT_SEED;
   });
+  const [winNotifs, setWinNotifs] = useState([]);
+  const [notifIdx, setNotifIdx] = useState(0);
+  const [notifVisible, setNotifVisible] = useState(false);
   const [chatMessages, setChatMessages] = useState([]);
   const [chatInput, setChatInput] = useState('');
   const [chatSending, setChatSending] = useState(false);
@@ -222,12 +225,47 @@ export default function App() {
       .limit(1000);
     if (!error && data) setRecords(data.map(mapBidRow));
   };
+  const loadSpinWins = async () => {
+    const { data, error } = await supabase
+      .from('spins')
+      .select('username,reward,created_at')
+      .gt('reward', 0)
+      .order('created_at', { ascending: false })
+      .limit(20);
+    if (!error && data) setWinNotifs(data);
+  };
 
   useEffect(() => {
     loadOffices();
     loadCandidates();
     loadRecords();
+    loadSpinWins();
   }, []);
+
+  useEffect(() => {
+    if (winNotifs.length === 0) return;
+    let cancelled = false;
+    let holdTimer, gapTimer;
+    const cycle = () => {
+      if (cancelled) return;
+      setNotifVisible(true);
+      holdTimer = setTimeout(() => {
+        if (cancelled) return;
+        setNotifVisible(false);
+        gapTimer = setTimeout(() => {
+          if (cancelled) return;
+          setNotifIdx((i) => (i + 1) % winNotifs.length);
+          cycle();
+        }, 400);
+      }, 4000);
+    };
+    cycle();
+    return () => {
+      cancelled = true;
+      clearTimeout(holdTimer);
+      clearTimeout(gapTimer);
+    };
+  }, [winNotifs]);
 
   const appendChatMessage = (msg) => {
     setChatMessages((prev) => (prev.some((m) => m.id === msg.id) ? prev : [...prev, msg]));
@@ -1451,6 +1489,32 @@ export default function App() {
         ♠ Permainan tebak-tebakan untuk hiburan internal. Coin tidak memiliki nilai tukar uang. ♥
       </div>
       <div className="tp-bottom-spacer" />
+
+      {/* WIN TOAST */}
+      {winNotifs.length > 0 && winNotifs[notifIdx] && (
+        <div className={'tp-win-toast' + (notifVisible ? ' visible' : '')}>
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '12px',
+              background: 'linear-gradient(135deg, oklch(0.30 0.14 335), oklch(0.16 0.07 335))',
+              border: '2px solid oklch(0.82 0.19 88)',
+              borderRadius: '12px',
+              padding: '12px 16px',
+              boxShadow: '0 8px 24px rgba(0,0,0,0.4), 0 0 20px oklch(0.82 0.19 88 / 0.35)',
+            }}
+          >
+            <div style={{ fontSize: '26px', animation: 'chipSpin 4s linear infinite' }}>🎰</div>
+            <div>
+              <div style={{ fontWeight: 700, fontSize: '14px', color: 'oklch(0.96 0.01 90)' }}>{winNotifs[notifIdx].username}</div>
+              <div style={{ fontSize: '13px', color: 'oklch(0.82 0.19 88)', fontWeight: 700 }}>
+                Menang {fmtNum(winNotifs[notifIdx].reward)} Coin! 🎉
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* BOTTOM TAB BAR (mobile only) */}
       <div className="tp-bottom-tabs">
