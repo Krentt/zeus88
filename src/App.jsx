@@ -351,7 +351,9 @@ export default function App() {
       setAuthModalOpen(false);
       saveSession(row.id, row.username, row.balance, row.last_free_spin_at);
       fireConfetti();
-      flash(authMode === 'register' ? 'Selamat datang, ' + row.username + '! Kamu dapat 1000 Coin.' : 'Selamat datang kembali, ' + row.username + '!');
+      if (authMode === 'register') {
+        flash('Selamat datang, ' + row.username + '! Kamu dapat 1000 Coin.');
+      }
     } catch (e) {
       setAuthError(e.message);
     } finally {
