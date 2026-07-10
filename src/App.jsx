@@ -33,6 +33,19 @@ function mapBidRow(row) {
 const rankColor = (i) => (i === 0 ? 'oklch(0.85 0.15 90)' : i === 1 ? 'oklch(0.85 0.01 90)' : i === 2 ? 'oklch(0.70 0.13 55)' : 'oklch(0.5 0.05 335)');
 const tickerVerbs = ['pasang', 'gaskeun', 'all-in', 'sikat'];
 
+const SESSION_KEY = 'tp_session';
+const saveSession = (id, username, balance) => {
+  localStorage.setItem(SESSION_KEY, JSON.stringify({ id, username, balance }));
+};
+const loadSession = () => {
+  try {
+    return JSON.parse(localStorage.getItem(SESSION_KEY));
+  } catch {
+    return null;
+  }
+};
+const clearSession = () => localStorage.removeItem(SESSION_KEY);
+
 export default function App() {
   const [candidateRows, setCandidateRows] = useState([]);
   const candidates = useMemo(() => candidateRows.map((c) => c.name), [candidateRows]);
@@ -68,6 +81,13 @@ export default function App() {
 
   useEffect(() => {
     fireConfetti();
+    const session = loadSession();
+    if (session && session.id && session.username) {
+      setUserId(session.id);
+      setUsername(session.username);
+      setBalance(session.balance || 0);
+      setLoggedIn(true);
+    }
   }, []);
 
   const tickerItems = useMemo(
@@ -145,6 +165,7 @@ export default function App() {
       setBalance(row.balance);
       setLoggedIn(true);
       setAuthModalOpen(false);
+      saveSession(row.id, row.username, row.balance);
       fireConfetti();
       flash(authMode === 'register' ? 'Selamat datang, ' + row.username + '! Kamu dapat 1000 Coin.' : 'Selamat datang kembali, ' + row.username + '!');
     } catch (e) {
@@ -155,6 +176,7 @@ export default function App() {
   };
 
   const logout = () => {
+    clearSession();
     setLoggedIn(false);
     setUserId(null);
     setUsername('');
@@ -219,6 +241,7 @@ export default function App() {
         newBalance = data[0].new_balance;
       }
       setBalance(newBalance);
+      saveSession(userId, username, newBalance);
       setSelectedBids({});
       await loadRecords();
       flash('Taruhan dipasang! ' + entries.length + ' kandidat, total ' + fmtNum(totalStake) + ' Coin.', 4000);
