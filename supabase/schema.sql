@@ -307,3 +307,59 @@ $$;
 
 revoke all on function spin_slot(uuid) from public;
 grant execute on function spin_slot(uuid) to anon, authenticated;
+
+-- ============ LIVE CHAT ============
+
+create table if not exists chat_messages (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references users(id),
+  username text not null,
+  message text not null check (char_length(message) between 1 and 500),
+  created_at timestamptz not null default now()
+);
+
+alter table chat_messages enable row level security;
+
+drop policy if exists "chat messages are publicly readable" on chat_messages;
+create policy "chat messages are publicly readable"
+  on chat_messages for select
+  using (true);
+-- no direct insert policy — writes only go through post_chat_message() below,
+-- which stamps the username server-side so it can't be spoofed.
+
+create or replace function post_chat_message(p_user_id uuid, p_message text)
+returns table(id uuid, username text, message text, created_at timestamptz)
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_username text;
+  v_message text;
+begin
+  v_message := trim(p_message);
+  if char_length(v_message) < 1 or char_length(v_message) > 500 then
+    raise exception 'invalid_message';
+  end if;
+
+  select u.username into v_username from users u where u.id = p_user_id;
+  if v_username is null then
+    raise exception 'user_not_found';
+  end if;
+
+  return query
+  insert into chat_messages (user_id, username, message)
+  values (p_user_id, v_username, v_message)
+  returning chat_messages.id, chat_messages.username, chat_messages.message, chat_messages.created_at;
+end;
+$$;
+
+revoke all on function post_chat_message(uuid, text) from public;
+grant execute on function post_chat_message(uuid, text) to anon, authenticated;
+
+-- enable Realtime (Postgres Changes) broadcasts for this table
+do $$
+begin
+  alter publication supabase_realtime add table chat_messages;
+exception when duplicate_object then null;
+end $$;
