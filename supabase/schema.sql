@@ -17,6 +17,13 @@ alter table users add column if not exists last_free_spin_at timestamptz;
 alter table users enable row level security;
 -- no policies: table only reachable through the security definer functions below
 
+-- fixed-id "System" account used to post automated chat messages (e.g. the
+-- welcome ping on registration). Not reachable via register_user/login_user
+-- since its password_hash is a random throwaway value nobody knows.
+insert into users (id, username, password_hash, balance)
+values ('00000000-0000-0000-0000-000000000001', 'System', extensions.crypt(gen_random_uuid()::text, extensions.gen_salt('bf')), 0)
+on conflict (id) do nothing;
+
 drop function if exists register_user(text, text);
 drop function if exists register_user(text, text, text);
 drop function if exists login_user(text, text);
@@ -32,6 +39,9 @@ set search_path = public, extensions
 as $$
 declare
   v_candidate_id uuid;
+  v_new_id uuid;
+  v_new_balance integer;
+  v_new_last_free timestamptz;
 begin
   if length(p_username) < 3 or length(p_password) < 6 then
     raise exception 'invalid_input';
@@ -56,10 +66,14 @@ begin
     raise exception 'name_already_registered';
   end if;
 
-  return query
   insert into users (username, password_hash, balance, candidate_id)
   values (p_username, crypt(p_password, gen_salt('bf')), 1000, v_candidate_id)
-  returning users.id, users.username, users.balance, users.last_free_spin_at;
+  returning users.id, users.balance, users.last_free_spin_at into v_new_id, v_new_balance, v_new_last_free;
+
+  insert into chat_messages (user_id, username, message)
+  values ('00000000-0000-0000-0000-000000000001', 'System', 'Selamat datang, ' || p_username || '! 🎉 Semoga tebakannya jitu.');
+
+  return query select v_new_id, p_username, v_new_balance, v_new_last_free;
 end;
 $$;
 
@@ -315,8 +329,10 @@ create table if not exists chat_messages (
   user_id uuid not null references users(id),
   username text not null,
   message text not null check (char_length(message) between 1 and 500),
+  is_announcement boolean not null default false,
   created_at timestamptz not null default now()
 );
+alter table chat_messages add column if not exists is_announcement boolean not null default false;
 
 alter table chat_messages enable row level security;
 
@@ -327,35 +343,54 @@ create policy "chat messages are publicly readable"
 -- no direct insert policy — writes only go through post_chat_message() below,
 -- which stamps the username server-side so it can't be spoofed.
 
-create or replace function post_chat_message(p_user_id uuid, p_message text)
-returns table(id uuid, username text, message text, created_at timestamptz)
+drop function if exists post_chat_message(uuid, text);
+
+-- an announcement costs 10 coin, deducted atomically here (same pattern as
+-- place_bid / spin_slot), and is flagged so the UI can style it differently.
+create or replace function post_chat_message(p_user_id uuid, p_message text, p_is_announcement boolean default false)
+returns table(id uuid, username text, message text, is_announcement boolean, created_at timestamptz, new_balance integer)
 language plpgsql
 security definer
 set search_path = public
 as $$
 declare
   v_username text;
+  v_balance integer;
   v_message text;
+  v_new_balance integer;
 begin
   v_message := trim(p_message);
   if char_length(v_message) < 1 or char_length(v_message) > 500 then
     raise exception 'invalid_message';
   end if;
 
-  select u.username into v_username from users u where u.id = p_user_id;
+  select u.username, u.balance into v_username, v_balance from users u where u.id = p_user_id;
   if v_username is null then
     raise exception 'user_not_found';
   end if;
 
+  v_new_balance := v_balance;
+
+  if p_is_announcement then
+    update users
+    set balance = balance - 10
+    where users.id = p_user_id and balance >= 10
+    returning users.balance into v_new_balance;
+
+    if v_new_balance is null then
+      raise exception 'insufficient_balance';
+    end if;
+  end if;
+
   return query
-  insert into chat_messages (user_id, username, message)
-  values (p_user_id, v_username, v_message)
-  returning chat_messages.id, chat_messages.username, chat_messages.message, chat_messages.created_at;
+  insert into chat_messages (user_id, username, message, is_announcement)
+  values (p_user_id, v_username, v_message, p_is_announcement)
+  returning chat_messages.id, chat_messages.username, chat_messages.message, chat_messages.is_announcement, chat_messages.created_at, v_new_balance;
 end;
 $$;
 
-revoke all on function post_chat_message(uuid, text) from public;
-grant execute on function post_chat_message(uuid, text) to anon, authenticated;
+revoke all on function post_chat_message(uuid, text, boolean) from public;
+grant execute on function post_chat_message(uuid, text, boolean) to anon, authenticated;
 
 -- enable Realtime (Postgres Changes) broadcasts for this table
 do $$
