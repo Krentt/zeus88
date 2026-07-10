@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import confetti from 'canvas-confetti';
 import { supabase } from './lib/supabaseClient';
 import gachaCherry from './assets/gacha/cherry.png';
@@ -39,7 +39,7 @@ function mapBidRow(row) {
 const rankColor = (i) => (i === 0 ? 'oklch(0.85 0.15 90)' : i === 1 ? 'oklch(0.85 0.01 90)' : i === 2 ? 'oklch(0.70 0.13 55)' : 'oklch(0.5 0.05 335)');
 const tickerVerbs = ['pasang', 'gaskeun', 'all-in', 'sikat'];
 
-// dummy placeholders — replace the files in src/assets/gacha/*.svg with your own art
+// dummy placeholders, replace the files in src/assets/gacha/*.svg with your own art
 // (keep the same filenames, or update the imports above to point at new files/extensions)
 const SLOT_SYMBOLS = {
   cherry: gachaCherry,
@@ -69,6 +69,36 @@ const loadSession = () => {
   }
 };
 const clearSession = () => localStorage.removeItem(SESSION_KEY);
+
+const JACKPOT_KEY = 'tp_jackpot';
+const JACKPOT_SEED = 128459300;
+const JACKPOT_TICK_MS = 1500;
+const jackpotIncrement = () => Math.floor(50 + Math.random() * 450);
+
+const useCountUp = (target, duration = 900) => {
+  const [display, setDisplay] = useState(target);
+  const fromRef = useRef(target);
+  useEffect(() => {
+    const from = fromRef.current;
+    const to = target;
+    if (from === to) return;
+    const start = performance.now();
+    let raf;
+    const tick = (now) => {
+      const t = Math.min(1, (now - start) / duration);
+      const eased = 1 - Math.pow(1 - t, 3);
+      setDisplay(Math.round(from + (to - from) * eased));
+      if (t < 1) {
+        raf = requestAnimationFrame(tick);
+      } else {
+        fromRef.current = to;
+      }
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [target, duration]);
+  return display;
+};
 
 export default function App() {
   const [candidateRows, setCandidateRows] = useState([]);
@@ -104,6 +134,10 @@ export default function App() {
   const [listOfficeFilter, setListOfficeFilter] = useState('Semua Satker');
   const [officeFilterOpen, setOfficeFilterOpen] = useState(false);
   const [officeFilterQuery, setOfficeFilterQuery] = useState('');
+  const [jackpot, setJackpot] = useState(() => {
+    const stored = Number(localStorage.getItem(JACKPOT_KEY));
+    return stored > 0 ? stored : JACKPOT_SEED;
+  });
 
   const flash = (msg, ms = 3500) => {
     setFlashMessage(msg);
@@ -121,6 +155,19 @@ export default function App() {
       setLoggedIn(true);
     }
   }, []);
+
+  useEffect(() => {
+    const id = setInterval(() => {
+      setJackpot((j) => {
+        const next = j + jackpotIncrement();
+        localStorage.setItem(JACKPOT_KEY, String(next));
+        return next;
+      });
+    }, JACKPOT_TICK_MS);
+    return () => clearInterval(id);
+  }, []);
+
+  const animatedJackpot = useCountUp(jackpot, 900);
 
   useEffect(() => {
     let cancelled = false;
@@ -422,11 +469,16 @@ export default function App() {
   const topCandidates = makeRows(candAgg, maxCand);
   const topOffices = makeRows(offAgg, maxOff);
 
+  const animatedTotalTaruhan = useCountUp(records.length);
+  const animatedCoinBeredar = useCountUp(totalCoins);
+  const animatedPemainAktif = useCountUp(bettorCount);
+  const animatedSatker = useCountUp(40, 1200);
+
   const statsView = [
-    { label: 'Total Taruhan', value: fmtNum(records.length) },
-    { label: 'Coin Beredar', value: fmtNum(totalCoins) },
-    { label: 'Pemain Aktif', value: fmtNum(bettorCount) },
-    { label: 'Satker', value: '40' },
+    { label: 'Total Taruhan', value: fmtNum(animatedTotalTaruhan) },
+    { label: 'Coin Beredar', value: fmtNum(animatedCoinBeredar) },
+    { label: 'Pemain Aktif', value: fmtNum(animatedPemainAktif) },
+    { label: 'Satker', value: fmtNum(animatedSatker) },
   ];
 
   const stepsView = [
@@ -667,6 +719,34 @@ export default function App() {
             </div>
           </div>
 
+          {/* JACKPOT */}
+          <div
+            style={{
+              textAlign: 'center',
+              background: 'linear-gradient(160deg, oklch(0.28 0.12 335), oklch(0.15 0.07 335))',
+              border: '2px solid oklch(0.82 0.19 88)',
+              borderRadius: '16px',
+              padding: '20px',
+              margin: '0 0 24px',
+              boxShadow: '0 0 40px oklch(0.82 0.19 88 / 0.25)',
+            }}
+          >
+            <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: '13px', letterSpacing: '2px', color: 'oklch(0.85 0.02 100)' }}>
+              🎰 JACKPOT COIN SAAT INI 🎰
+            </div>
+            <div
+              className="tp-shimmer-text"
+              style={{
+                fontFamily: "'Luckiest Guy',cursive",
+                fontSize: '42px',
+                letterSpacing: '1px',
+                animation: 'shimmer 2.5s linear infinite, glowPulse 1.6s ease-in-out infinite',
+              }}
+            >
+              {fmtNum(animatedJackpot)} COIN
+            </div>
+          </div>
+
           {/* GACHA BANNER */}
           <div
             onClick={openGacha}
@@ -692,7 +772,7 @@ export default function App() {
                   GACHA COIN!
                 </div>
                 <div style={{ fontSize: '13px', color: 'oklch(0.85 0.02 100)' }}>
-                  Spin gratis 1x/hari — jackpot 1000 Coin! Mau lagi? 10 Coin/spin.
+                  Spin gratis 1x/hari. Mau lagi? 10 Coin/spin
                 </div>
               </div>
             </div>
@@ -849,7 +929,7 @@ export default function App() {
                 {showOfficeStep && (
                   <div>
                     <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: '26px', color: 'oklch(0.82 0.19 88)', letterSpacing: '1px', marginBottom: '6px' }}>
-                      LANGKAH 1 — PILIH SATKER
+                      LANGKAH 1: PILIH SATKER
                     </div>
                     <div style={{ color: 'oklch(0.75 0.02 100)', marginBottom: '16px', fontSize: '14px' }}>
                       40 satker tersedia. Pilih satker tujuan yang mau kamu tebak.
@@ -894,7 +974,7 @@ export default function App() {
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px', flexWrap: 'wrap', gap: '10px' }}>
                       <div>
                         <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: '26px', color: 'oklch(0.82 0.19 88)', letterSpacing: '1px' }}>
-                          LANGKAH 2 — PILIH KANDIDAT
+                          LANGKAH 2: PILIH KANDIDAT
                         </div>
                         <div style={{ color: 'oklch(0.75 0.02 100)', fontSize: '14px' }}>
                           Satker tujuan: <b style={{ color: 'oklch(0.96 0.01 90)' }}>{selectedOffice}</b>
