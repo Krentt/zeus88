@@ -15,6 +15,62 @@ const fireConfetti = () => {
   confetti({ particleCount: 60, angle: 120, spread: 55, origin: { x: 1 }, colors: CONFETTI_COLORS });
 };
 
+// synthesized slot-machine SFX via Web Audio API (no audio files needed)
+let audioCtx = null;
+const getAudioCtx = () => {
+  const Ctx = window.AudioContext || window.webkitAudioContext;
+  if (!Ctx) return null;
+  if (!audioCtx) audioCtx = new Ctx();
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+  return audioCtx;
+};
+
+const playTone = (freq, duration, { type = 'square', volume = 0.12, delay = 0 } = {}) => {
+  const ctx = getAudioCtx();
+  if (!ctx) return;
+  const t0 = ctx.currentTime + delay;
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.type = type;
+  osc.frequency.setValueAtTime(freq, t0);
+  gain.gain.setValueAtTime(0.0001, t0);
+  gain.gain.exponentialRampToValueAtTime(volume, t0 + 0.008);
+  gain.gain.exponentialRampToValueAtTime(0.0001, t0 + duration);
+  osc.connect(gain).connect(ctx.destination);
+  osc.start(t0);
+  osc.stop(t0 + duration + 0.02);
+};
+
+const playReelTick = () => playTone(1300 + Math.random() * 250, 0.045, { type: 'square', volume: 0.05 });
+const playReelStop = () => playTone(180, 0.1, { type: 'triangle', volume: 0.18 });
+const playSpinStart = () => {
+  const ctx = getAudioCtx();
+  if (!ctx) return;
+  const t0 = ctx.currentTime;
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.type = 'sawtooth';
+  osc.frequency.setValueAtTime(160, t0);
+  osc.frequency.exponentialRampToValueAtTime(520, t0 + 0.18);
+  gain.gain.setValueAtTime(0.0001, t0);
+  gain.gain.exponentialRampToValueAtTime(0.1, t0 + 0.02);
+  gain.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.2);
+  osc.connect(gain).connect(ctx.destination);
+  osc.start(t0);
+  osc.stop(t0 + 0.22);
+};
+const playWinChime = (reward) => {
+  if (reward >= 1000) {
+    [523.25, 659.25, 783.99, 1046.5, 1318.5].forEach((f, i) => playTone(f, 0.35, { type: 'triangle', volume: 0.18, delay: i * 0.09 }));
+  } else if (reward >= 100) {
+    [659.25, 880, 1046.5].forEach((f, i) => playTone(f, 0.22, { type: 'triangle', volume: 0.15, delay: i * 0.08 }));
+  } else if (reward >= 20) {
+    [880, 1046.5].forEach((f, i) => playTone(f, 0.18, { type: 'sine', volume: 0.14, delay: i * 0.09 }));
+  } else {
+    playTone(220, 0.25, { type: 'sine', volume: 0.1, delay: 0.05 });
+  }
+};
+
 function formatTime(min) {
   if (min < 1) return 'Baru saja';
   if (min < 60) return min + ' menit lalu';
@@ -431,6 +487,7 @@ export default function App() {
     setGachaError(null);
     setGachaResult(null);
     setGachaSpinning(true);
+    playSpinStart();
 
     const spinTicker = setInterval(() => {
       setGachaReels([
@@ -438,6 +495,7 @@ export default function App() {
         SLOT_KEYS[Math.floor(Math.random() * SLOT_KEYS.length)],
         SLOT_KEYS[Math.floor(Math.random() * SLOT_KEYS.length)],
       ]);
+      playReelTick();
     }, 90);
 
     try {
@@ -454,6 +512,8 @@ export default function App() {
       setLastFreeSpinAt(newLastFreeSpinAt);
       saveSession(userId, username, row.new_balance, newLastFreeSpinAt);
       setGachaResult({ reward: row.reward, wasFree: row.was_free });
+      playReelStop();
+      playWinChime(row.reward);
       if (row.reward >= 1000) fireConfetti();
     } catch (e) {
       clearInterval(spinTicker);
